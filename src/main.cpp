@@ -28,9 +28,6 @@ struct Pad {
   int button_flag[2]      = {}; // 0、自稳开关         1、襟翼开关
   int joystick_mid_val[2] = {}; // 0、副翼中值         1、升降舵中值
   int motor_servo_ADC[3]  = {}; // 0、油门             1、副翼；       2、升降舵
-  // float x_pid_data[3]       = {}; // 0、X轴比例          1、X轴积分；    2、X轴微分
-  // float y_pid_data[3]       = {}; // 0、Y轴比例          1、Y轴积分；    2、Y轴微分
-  // float coe[1]              = {}; // 0、舵机角度换算系数
 };
 Pad pad;
 
