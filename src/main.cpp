@@ -44,13 +44,6 @@ Aircraft aircraft;
 
 bool esp_connected;
 
-/*------------------------------------------------- PID -------------------------------------------------*/
-
-// float Xp = -4.0, Xi = -0.01, Xd = -0.2,
-//       Yp = -4.0, Yi = -0.01, Yd = -0.2;
-
-// float P_adj_step = 0.5, I_adj_step = 0.01, D_adj_step = 0.01;
-
 /*------------------------------------------------ oled -------------------------------------------------*/
 
 #define SDA_PIN 21
@@ -88,7 +81,6 @@ Ticker buzzerMode;
 
 volatile bool paringMax = false; // 油门推到最大标志位
 volatile bool paringMin = false; // 油门推到最小标志位
-// volatile bool angleConfirm = false; // 舵机角度标志位
 
 /*-------------------------------------------------- 按钮 --------------------------------------------------*/
 
@@ -143,7 +135,6 @@ String flap_switch      = "";
 #define STICK_THROTTLE 39 // 油门
 #define STICK_ELEVATOR 35 // 升降舵
 #define STICK_AILERON 32  // 副翼
-// #define STICK_ADJUSTMENT 34 // 步长调整
 #define LIMIT_FILTER 10   // 限幅滤波阈值，建议取值范围3~10，值越小，操控越需要柔和
 #define AVERAGE_FILTER 50 // 均值滤波，N次取样平均，建议取值范围20~80
 #define ADC_MIN 0
@@ -156,8 +147,6 @@ byte
     left_x_mid,  // 油门
     right_x_mid, // 升降舵
     right_y_mid; // 副翼
-
-// float turn_coe = 0.46875;
 
 /*------------------------------------------------ 自定义函数 ------------------------------------------------*/
 
@@ -411,9 +400,6 @@ void transmitData() {
     button_flag[2]      = 0、自稳开关         1、襟翼开关
     joystick_mid_val[2] = 0、副翼中值         1、升降舵中值
     motor_servo_ADC[3]  = 0、油门             1、副翼；       2、升降舵
-    x_pid_data[3]       = 0、X轴比例          1、X轴积分；    2、X轴微分
-    y_pid_data[3]       = 0、Y轴比例          1、Y轴积分；    2、Y轴微分
-    coe[1]              = 0、舵机角度换算系数
   */
   pad.button_flag[0]      = digitalRead(BUTTON_THROTTLE);
   pad.button_flag[1]      = digitalRead(BUTTON_FLAP);
