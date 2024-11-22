@@ -17,7 +17,7 @@ ESP32_PICO 手抛飞机自稳遥控器
 #include <esp_now.h>
 #include <esp_wifi.h>
 
-/*------------------------------------------------- ESP NOW -------------------------------------------------*/
+/*----------------------------------------------- ESP NOW ------------------------------------------------*/
 
 uint8_t airCraftAddress[] = { 0xf0, 0x24, 0xf9, 0x8f, 0xb3, 0x9c }; // PICO_1
 
@@ -25,17 +25,17 @@ uint8_t airCraftAddress[] = { 0xf0, 0x24, 0xf9, 0x8f, 0xb3, 0x9c }; // PICO_1
 esp_now_peer_info_t peerInfo;
 
 struct Pad {
-  int button_flag[2]      = {}; // 0、自稳开关         1、襟翼开关
-  int joystick_mid_val[2] = {}; // 0、副翼中值         1、升降舵中值
-  int motor_servo_ADC[3]  = {}; // 0、油门             1、副翼；       2、升降舵
+  int button_flag[2]      = {}; // 0、自稳开关       1、襟翼开关
+  int joystick_mid_val[2] = {}; // 0、副翼中值       1、升降舵中值
+  int motor_servo_ADC[3]  = {}; // 0、油门           1、副翼；       2、升降舵
 };
 Pad pad;
 
 struct Aircraft {
   int   batteryValue[1] = {}; // 0、电池电量ADC值
-  int   servo_angle[2]  = {}; // 0、升降舵机角度   1、副翼舵机角度
-  float x_data[2]       = {}; // 0、X轴角度        1、X轴角速度
-  float y_data[2]       = {}; // 0、Y轴角度        1、Y轴角速度
+  int   servo_angle[2]  = {}; // 0、升降舵机角度     1、副翼舵机角度
+  float x_data[2]       = {}; // 0、X轴角度          1、X轴角速度
+  float y_data[2]       = {}; // 0、Y轴角度          1、Y轴角速度
 };
 Aircraft aircraft;
 
