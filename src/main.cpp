@@ -1,11 +1,13 @@
+
 /******************************************************************************************************
 
 ESP32_PICO 手抛飞机自稳遥控器
 
-- 版本：1.0.1    分支develop，作为PID已经调整好的版本。
-                  * 取消发送PID值，只发送ADC、中值、系数、钮子开关状态
-                  * 启用发送开关
-                  * 修改显示内容。显示角度、角速度、舵机最终角度、自稳开关
+    branch develop：
+                    由于接收机develop分支的平衡角度计算和操控方式不需要用到角度计算的系数，
+                    所以在本分值中将不再发送角度系数。其余代码不变。
+
+本版本用于测试和确定PID参数。
 
 *******************************************************************************************************/
 
@@ -17,7 +19,7 @@ ESP32_PICO 手抛飞机自稳遥控器
 #include <esp_now.h>
 #include <esp_wifi.h>
 
-/*----------------------------------------------- ESP NOW ------------------------------------------------*/
+/*------------------------------------------------- ESP NOW -------------------------------------------------*/
 
 uint8_t airCraftAddress[] = { 0xf0, 0x24, 0xf9, 0x8f, 0xb3, 0x9c }; // PICO_1
 
@@ -25,23 +27,32 @@ uint8_t airCraftAddress[] = { 0xf0, 0x24, 0xf9, 0x8f, 0xb3, 0x9c }; // PICO_1
 esp_now_peer_info_t peerInfo;
 
 struct Pad {
-  int button_flag[2]      = {}; // 0、自稳开关       1、襟翼开关
-  int joystick_mid_val[2] = {}; // 0、副翼中值       1、升降舵中值
-  int motor_servo_ADC[3]  = {}; // 0、油门           1、副翼；       2、升降舵
+  int   button_flag[2]      = {}; // 0、自稳开关         1、襟翼开关
+  int   joystick_mid_val[2] = {}; // 0、副翼中值         1、升降舵中值
+  int   motor_servo_ADC[3]  = {}; // 0、油门             1、副翼；       2、升降舵
+  float x_pid_data[3]       = {}; // 0、X轴比例          1、X轴积分；    2、X轴微分
+  float y_pid_data[3]       = {}; // 0、Y轴比例          1、Y轴积分；    2、Y轴微分
 };
 Pad pad;
 
 struct Aircraft {
   int   batteryValue[1] = {}; // 0、电池电量ADC值
-  int   servo_angle[2]  = {}; // 0、升降舵机角度     1、副翼舵机角度
-  float x_data[2]       = {}; // 0、X轴角度          1、X轴角速度
-  float y_data[2]       = {}; // 0、Y轴角度          1、Y轴角速度
+  int   servo_angle[2]  = {}; // 0、升降舵机角度   1、副翼舵机角度
+  float x_data[2]       = {}; // 0、X轴角度        1、X轴角速度
+  float y_data[2]       = {}; // 0、Y轴角度        1、Y轴角速度
 };
 Aircraft aircraft;
 
 bool esp_connected;
 
-/*------------------------------------------------ oled -------------------------------------------------*/
+/*------------------------------------------------- PID -------------------------------------------------*/
+
+float Xp = -4.0, Xi = -0.01, Xd = -0.2,
+      Yp = -4.0, Yi = -0.01, Yd = -0.2;
+
+float P_adj_step = 0.5, I_adj_step = 0.01, D_adj_step = 0.01;
+
+/*------------------------------------------------- oled -------------------------------------------------*/
 
 #define SDA_PIN 21
 #define SCL_PIN 22
@@ -56,7 +67,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
 
 volatile bool oled_display_flag = true;
 
-byte   num         = 3;
+byte   num         = 4;
 byte   page        = 0;
 byte   progress    = 0;
 String RSSI_status = "";
@@ -76,8 +87,9 @@ Ticker buzzerMode;
 
 /*------------------------------------------------- 开机锁 -------------------------------------------------*/
 
-volatile bool paringMax = false; // 油门推到最大标志位
-volatile bool paringMin = false; // 油门推到最小标志位
+volatile bool paringMax    = false; // 油门推到最大标志位
+volatile bool paringMin    = false; // 油门推到最小标志位
+volatile bool angleConfirm = false; // 舵机角度标志位
 
 /*-------------------------------------------------- 按钮 --------------------------------------------------*/
 
@@ -118,22 +130,23 @@ float
     airCraftBatteryVoltage, // 飞行器电池电量 单位v
     airCraftPercentage;     // 飞行器电量百分比
 
-/*------------------------------------------ 微调&襟翼&油门开关 --------------------------------------------*/
+/*------------------------------------------- 微调&襟翼&油门开关 --------------------------------------------*/
 
-#define BUTTON_THROTTLE 25  // 油门开关
-#define BUTTON_AUTO_CTRL 18 // 微调开关
-#define BUTTON_FLAP 19      // 襟翼开关
+#define BUTTON_THROTTLE 25   // 油门开关
+#define BUTTON_FINETUNING 18 // 微调开关
+#define BUTTON_FLAP 19       // 襟翼开关
 
-String auto_ctrl_switch = "";
-String flap_switch      = "";
+String adj_switch_X = "";
+String adj_switch_Y = "";
 
 /*------------------------------------------------ 摇杆滤波 ------------------------------------------------*/
 
-#define STICK_THROTTLE 39 // 油门
-#define STICK_ELEVATOR 35 // 升降舵
-#define STICK_AILERON 32  // 副翼
-#define LIMIT_FILTER 10   // 限幅滤波阈值，建议取值范围3~10，值越小，操控越需要柔和
-#define AVERAGE_FILTER 50 // 均值滤波，N次取样平均，建议取值范围20~80
+#define STICK_THROTTLE 39   // 油门
+#define STICK_ELEVATOR 35   // 升降舵
+#define STICK_AILERON 32    // 副翼
+#define STICK_ADJUSTMENT 34 // 步长调整
+#define LIMIT_FILTER 10     // 限幅滤波阈值，建议取值范围3~10，值越小，操控越需要柔和
+#define AVERAGE_FILTER 50   // 均值滤波，N次取样平均，建议取值范围20~80
 #define ADC_MIN 0
 #define ADC_MAX 255
 
@@ -145,7 +158,7 @@ byte
     right_x_mid, // 升降舵
     right_y_mid; // 副翼
 
-/*------------------------------------------------ 自定义函数 ------------------------------------------------*/
+/*----------------------------------------------- 自定义函数 -----------------------------------------------*/
 
 // 计时器函数
 void toggle() {
@@ -278,22 +291,34 @@ void getJoyStickValue() {
 // 钮子开关及摇杆调参
 void handleSWfunction() {
   // X轴PID调参
-  if (digitalRead(BUTTON_AUTO_CTRL) == 1) {
-    auto_ctrl_switch  = "开";
-    oled_display_flag = true;
-    num               = 4;
-    page              = num % 3;
-  } else {
-    auto_ctrl_switch = "关";
-  }
-  // Y轴PID调参
-  if ((digitalRead(BUTTON_AUTO_CTRL) == 0) && (digitalRead(BUTTON_FLAP) == 1)) {
-    flap_switch       = "开";
+  if ((digitalRead(BUTTON_FINETUNING) == 1) && (digitalRead(BUTTON_FLAP) == 0)) {
+    adj_switch_X      = "开";
     oled_display_flag = true;
     num               = 5;
-    page              = num % 3;
+    page              = num % 4;
+    // 比例项调参
+    if (analogRead(STICK_AILERON) > 200) {
+      Xp += P_adj_step;
+    } else if (analogRead(STICK_AILERON) < 35) {
+      Xp -= P_adj_step;
+    }
   } else {
-    flap_switch = "关";
+    adj_switch_X = "关";
+  }
+  // Y轴PID调参
+  if ((digitalRead(BUTTON_FINETUNING) == 0) && (digitalRead(BUTTON_FLAP) == 1)) {
+    adj_switch_Y      = "开";
+    oled_display_flag = true;
+    num               = 6;
+    page              = num % 4;
+    // 比例项调参
+    if (analogRead(STICK_AILERON) > 200) {
+      Yp += P_adj_step;
+    } else if (analogRead(STICK_AILERON) < 35) {
+      Yp -= P_adj_step;
+    }
+  } else {
+    adj_switch_Y = "关";
   }
   // 发送开关
   if (digitalRead(BUTTON_THROTTLE) == true) {
@@ -305,12 +330,19 @@ void handleSWfunction() {
 
 // 短按按钮功能
 void btnShortPressed() {
+  /*
+   * Xp = 左摇杆（左-、右+），Xi = btn_R（左-、右+），Xd = btn_L（左-、右+）
+   * Yp = 左摇杆（左-、右+），Yi = btn_R（左-、右+），Yd = btn_L（左-、右+）
+   * step = btn_L（同时打开两个钮子开关，左-、右+）
+   * page = 左1-、右1+（钮子开关全部关闭）
+   */
+
   //  翻页
-  if (oled_display_flag == true && (digitalRead(BUTTON_AUTO_CTRL) == 0) && (digitalRead(BUTTON_FLAP) == 0)) {
+  if (oled_display_flag == true && (digitalRead(BUTTON_FINETUNING) == 0) && (digitalRead(BUTTON_FLAP) == 0)) {
     switch (button_pin) {
     case BUTTON_R_1:
       num  = num + 1;
-      page = num % 3;
+      page = num % 4;
       break;
     case BUTTON_L_1:
       if (page > 0) {
@@ -318,7 +350,69 @@ void btnShortPressed() {
       } else {
         num = 0;
       }
-      page = num % 3;
+      page = num % 4;
+      break;
+    default:
+      break;
+    }
+  }
+  // X轴
+  if (oled_display_flag == true && (digitalRead(BUTTON_FINETUNING) == 1) && (digitalRead(BUTTON_FLAP) == 0)) {
+    switch (button_pin) {
+      // 积分项I
+    case BUTTON_R_1:
+      Xi -= I_adj_step;
+      break;
+    case BUTTON_R_2:
+      Xi += I_adj_step;
+      break;
+      // 微分项D
+    case BUTTON_L_1:
+      Xd += D_adj_step;
+      break;
+      // 左按键
+    case BUTTON_L_2:
+      Xd -= D_adj_step;
+      break;
+    default:
+      break;
+    }
+  }
+  // Y轴
+  if (oled_display_flag == true && (digitalRead(BUTTON_FINETUNING) == 0) && (digitalRead(BUTTON_FLAP) == 1)) {
+    switch (button_pin) {
+      // 积分项I
+    case BUTTON_R_1:
+      Yi -= I_adj_step;
+      break;
+    case BUTTON_R_2:
+      Yi += I_adj_step;
+      break;
+      // 微分项D
+    case BUTTON_L_1:
+      Yd += D_adj_step;
+      break;
+    case BUTTON_L_2:
+      Yd -= D_adj_step;
+      break;
+    default:
+      break;
+    }
+  }
+  // PID步长调整
+  if (oled_display_flag == true && (digitalRead(BUTTON_FINETUNING) == 1) && (digitalRead(BUTTON_FLAP) == 1)) {
+    switch (button_pin) {
+    case BUTTON_L_1:
+      I_adj_step += 0.01;
+      break;
+    case BUTTON_L_2:
+      I_adj_step -= 0.01;
+      break;
+    case BUTTON_R_1:
+      D_adj_step -= 0.01;
+      break;
+    case BUTTON_R_2:
+      D_adj_step += 0.01;
       break;
     default:
       break;
@@ -397,6 +491,8 @@ void transmitData() {
     button_flag[2]      = 0、自稳开关         1、襟翼开关
     joystick_mid_val[2] = 0、副翼中值         1、升降舵中值
     motor_servo_ADC[3]  = 0、油门             1、副翼；       2、升降舵
+    x_pid_data[3]       = 0、X轴比例          1、X轴积分；    2、X轴微分
+    y_pid_data[3]       = 0、Y轴比例          1、Y轴积分；    2、Y轴微分
   */
   pad.button_flag[0]      = digitalRead(BUTTON_THROTTLE);
   pad.button_flag[1]      = digitalRead(BUTTON_FLAP);
@@ -405,6 +501,12 @@ void transmitData() {
   pad.motor_servo_ADC[0]  = analogRead(STICK_THROTTLE);
   pad.motor_servo_ADC[1]  = analogRead(STICK_AILERON);
   pad.motor_servo_ADC[2]  = analogRead(STICK_ELEVATOR);
+  pad.x_pid_data[0]       = Xp;
+  pad.x_pid_data[1]       = Xi;
+  pad.x_pid_data[2]       = Xd;
+  pad.y_pid_data[0]       = Yp;
+  pad.y_pid_data[1]       = Yi;
+  pad.y_pid_data[2]       = Yd;
 
   // 油门修整
   if (pad.motor_servo_ADC[0] <= left_x_mid) {
@@ -425,18 +527,22 @@ void transmitData() {
     pad.motor_servo_ADC[2] = map(pad.motor_servo_ADC[2], right_x_mid + 1, ADC_MAX, 128, ADC_MAX);
   }
 
-  // esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+  esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
 
+  /*
   // 发送
   if (digitalRead(BUTTON_THROTTLE) == true) {
+    if (digitalRead(BUTTON_FLAP) == true && digitalRead(BUTTON_FINETUNING) == false) {
+    }
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
   } else {
-    pad.button_flag[0]     = 0;
+    pad.button_flag[0]  = 0;
     pad.motor_servo_ADC[0] = 0;
     pad.motor_servo_ADC[1] = right_y_mid;
     pad.motor_servo_ADC[2] = right_x_mid;
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
   }
+  */
 }
 
 // 数据发出去之后的回调函数
@@ -498,30 +604,67 @@ void oledDisplay() {
       u8g2.sendBuffer();
       break;
     case 1:
-      // 第二页 自稳
+      // 第二页 X轴PID
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
       u8g2.drawUTF8(5, 10, "Pitch");
       u8g2.setCursor(75, 10);
-      u8g2.printf("自稳 : %s", auto_ctrl_switch); // 微调开关
-      // X轴
+      u8g2.printf("调参 : %s", adj_switch_X); // 微调开关
+      // pid值
       u8g2.setCursor(5, 30);
-      u8g2.printf("Xa: %.0f", aircraft.x_data[0]);
+      u8g2.printf("P: %.1f", Xp);
       u8g2.setCursor(45, 30);
-      u8g2.printf("Xg: %.0f", aircraft.x_data[1]);
+      u8g2.printf("I: %.2f", Xi);
       u8g2.setCursor(85, 30);
-      u8g2.printf("Xs: %.0f", aircraft.servo_angle[0]);
-      // Y轴
+      u8g2.printf("D: %.2f", Xd);
+      // step值
       u8g2.setCursor(5, 45);
-      u8g2.printf("Ya: %.0f", aircraft.y_data[0]);
+      u8g2.printf("%.1f", P_adj_step);
       u8g2.setCursor(45, 45);
-      u8g2.printf("Yg: %.0f", aircraft.y_data[1]);
+      u8g2.printf("%.2f", I_adj_step);
       u8g2.setCursor(85, 45);
-      u8g2.printf("Ys: %.0f", aircraft.servo_angle[1]);
+      u8g2.printf("%.2f", D_adj_step);
+      // 飞机姿态
+      u8g2.setCursor(5, 60);
+      u8g2.printf("A: %.1f", aircraft.x_data[0]);
+      u8g2.setCursor(50, 60);
+      u8g2.printf("G: %.1f", aircraft.x_data[1]);
+      u8g2.setCursor(95, 60);
+      u8g2.printf("S: %d", aircraft.servo_angle[0]);
       u8g2.sendBuffer();
       break;
     case 2:
-      // 第三页 电量详情
+      // 第三页 Y轴PID
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
+      u8g2.drawUTF8(5, 10, "Roll");
+      u8g2.setCursor(75, 10);
+      u8g2.printf("调参 : %s", adj_switch_Y); // 微调开关
+      // pid值
+      u8g2.setCursor(5, 30);
+      u8g2.printf("P: %.1f", Yp);
+      u8g2.setCursor(45, 30);
+      u8g2.printf("I: %.2f", Yi);
+      u8g2.setCursor(85, 30);
+      u8g2.printf("D: %.2f", Yd);
+      // step值
+      u8g2.setCursor(5, 45);
+      u8g2.printf("%.1f", P_adj_step);
+      u8g2.setCursor(45, 45);
+      u8g2.printf("%.2f", I_adj_step);
+      u8g2.setCursor(85, 45);
+      u8g2.printf("%.2f", D_adj_step);
+      // 飞机姿态
+      u8g2.setCursor(5, 60);
+      u8g2.printf("A: %.1f", aircraft.y_data[0]);
+      u8g2.setCursor(50, 60);
+      u8g2.printf("G: %.1f", aircraft.y_data[1]);
+      u8g2.setCursor(95, 60);
+      u8g2.printf("S: %d", aircraft.servo_angle[1]);
+      u8g2.sendBuffer();
+      break;
+    case 3:
+      // 第四页 电量详情
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
       u8g2.drawUTF8(5, 15, "电量");
@@ -554,10 +697,10 @@ void setup() {
   u8g2.enableUTF8Print(); // 显示中文使能
 
   // 引脚初始化
-  pinMode(BUTTON_THROTTLE, INPUT_PULLDOWN);  // 油门开关
-  pinMode(BUTTON_AUTO_CTRL, INPUT_PULLDOWN); // 微调开关
-  pinMode(BUTTON_FLAP, INPUT_PULLDOWN);      // 襟翼开关
-  pinMode(BUZZER_PIN, OUTPUT);               // 蜂鸣器引脚
+  pinMode(BUTTON_THROTTLE, INPUT_PULLDOWN);   // 油门开关
+  pinMode(BUTTON_FINETUNING, INPUT_PULLDOWN); // 微调开关
+  pinMode(BUTTON_FLAP, INPUT_PULLDOWN);       // 襟翼开关
+  pinMode(BUZZER_PIN, OUTPUT);                // 蜂鸣器引脚
   pinMode(BUTTON_L_1, INPUT_PULLDOWN);
   pinMode(BUTTON_L_2, INPUT_PULLDOWN);
   pinMode(BUTTON_R_1, INPUT_PULLDOWN);
