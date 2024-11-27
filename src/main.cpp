@@ -27,11 +27,11 @@ uint8_t airCraftAddress[] = { 0xf0, 0x24, 0xf9, 0x8f, 0xb3, 0x9c }; // PICO_1
 esp_now_peer_info_t peerInfo;
 
 struct Pad {
-  int   button_flag[2]      = {}; // 0、自稳开关         1、襟翼开关
-  int   joystick_mid_val[2] = {}; // 0、副翼中值         1、升降舵中值
-  int   motor_servo_ADC[3]  = {}; // 0、油门             1、副翼；       2、升降舵
-  float x_pid_data[3]       = {}; // 0、X轴比例          1、X轴积分；    2、X轴微分
-  float y_pid_data[3]       = {}; // 0、Y轴比例          1、Y轴积分；    2、Y轴微分
+  int   button_status[3]    = {}; // 0、自稳开关      1、襟翼开关     2、微调开关
+  int   joystick_mid_val[2] = {}; // 0、副翼中值      1、升降舵中值
+  int   joystick_cur_val[3] = {}; // 0、油门          1、副翼；       2、升降舵
+  float x_pid_data[3]       = {}; // 0、X轴比例       1、X轴积分；    2、X轴微分
+  float y_pid_data[3]       = {}; // 0、Y轴比例       1、Y轴积分；    2、Y轴微分
 };
 Pad pad;
 
@@ -488,19 +488,20 @@ void button_identify() {
 // 数据发送
 void transmitData() {
   /*
-    button_flag[2]      = 0、自稳开关         1、襟翼开关
-    joystick_mid_val[2] = 0、副翼中值         1、升降舵中值
-    motor_servo_ADC[3]  = 0、油门             1、副翼；       2、升降舵
-    x_pid_data[3]       = 0、X轴比例          1、X轴积分；    2、X轴微分
-    y_pid_data[3]       = 0、Y轴比例          1、Y轴积分；    2、Y轴微分
+    button_status[3]      = 0、自稳开关       1、襟翼开关       2、微调开关
+    joystick_mid_val[2] = 0、副翼中值       1、升降舵中值
+    joystick_cur_val[3]  = 0、油门           1、副翼；         2、升降舵
+    x_pid_data[3]       = 0、X轴比例        1、X轴积分；      2、X轴微分
+    y_pid_data[3]       = 0、Y轴比例        1、Y轴积分；      2、Y轴微分
   */
-  pad.button_flag[0]      = digitalRead(BUTTON_THROTTLE);
-  pad.button_flag[1]      = digitalRead(BUTTON_FLAP);
+  pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
+  pad.button_status[1]    = digitalRead(BUTTON_FLAP);
+  pad.button_status[2]    = digitalRead(BUTTON_FINETUNING);
   pad.joystick_mid_val[0] = right_x_mid;
   pad.joystick_mid_val[1] = right_y_mid;
-  pad.motor_servo_ADC[0]  = analogRead(STICK_THROTTLE);
-  pad.motor_servo_ADC[1]  = analogRead(STICK_AILERON);
-  pad.motor_servo_ADC[2]  = analogRead(STICK_ELEVATOR);
+  pad.joystick_cur_val[0] = analogRead(STICK_THROTTLE);
+  pad.joystick_cur_val[1] = analogRead(STICK_AILERON);
+  pad.joystick_cur_val[2] = analogRead(STICK_ELEVATOR);
   pad.x_pid_data[0]       = Xp;
   pad.x_pid_data[1]       = Xi;
   pad.x_pid_data[2]       = Xd;
@@ -509,22 +510,22 @@ void transmitData() {
   pad.y_pid_data[2]       = Yd;
 
   // 油门修整
-  if (pad.motor_servo_ADC[0] <= left_x_mid) {
-    pad.motor_servo_ADC[0] = map(pad.motor_servo_ADC[0], ADC_MIN, left_x_mid, ADC_MIN, 127);
+  if (pad.joystick_cur_val[0] <= left_x_mid) {
+    pad.joystick_cur_val[0] = map(pad.joystick_cur_val[0], ADC_MIN, left_x_mid, ADC_MIN, 127);
   } else {
-    pad.motor_servo_ADC[0] = map(pad.motor_servo_ADC[0], left_x_mid + 1, ADC_MAX, 128, ADC_MAX);
+    pad.joystick_cur_val[0] = map(pad.joystick_cur_val[0], left_x_mid + 1, ADC_MAX, 128, ADC_MAX);
   }
   // 副翼修正
-  if (pad.motor_servo_ADC[1] <= right_y_mid) {
-    pad.motor_servo_ADC[1] = map(pad.motor_servo_ADC[1], ADC_MIN, right_y_mid, ADC_MIN, 127);
+  if (pad.joystick_cur_val[1] <= right_y_mid) {
+    pad.joystick_cur_val[1] = map(pad.joystick_cur_val[1], ADC_MIN, right_y_mid, ADC_MIN, 127);
   } else {
-    pad.motor_servo_ADC[1] = map(pad.motor_servo_ADC[1], right_y_mid + 1, ADC_MAX, 128, ADC_MAX);
+    pad.joystick_cur_val[1] = map(pad.joystick_cur_val[1], right_y_mid + 1, ADC_MAX, 128, ADC_MAX);
   }
   // 升降舵修正
-  if (pad.motor_servo_ADC[2] <= right_x_mid) {
-    pad.motor_servo_ADC[2] = map(pad.motor_servo_ADC[2], ADC_MIN, right_x_mid, ADC_MIN, 127);
+  if (pad.joystick_cur_val[2] <= right_x_mid) {
+    pad.joystick_cur_val[2] = map(pad.joystick_cur_val[2], ADC_MIN, right_x_mid, ADC_MIN, 127);
   } else {
-    pad.motor_servo_ADC[2] = map(pad.motor_servo_ADC[2], right_x_mid + 1, ADC_MAX, 128, ADC_MAX);
+    pad.joystick_cur_val[2] = map(pad.joystick_cur_val[2], right_x_mid + 1, ADC_MAX, 128, ADC_MAX);
   }
 
   esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
@@ -536,10 +537,10 @@ void transmitData() {
     }
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
   } else {
-    pad.button_flag[0]  = 0;
-    pad.motor_servo_ADC[0] = 0;
-    pad.motor_servo_ADC[1] = right_y_mid;
-    pad.motor_servo_ADC[2] = right_x_mid;
+    pad.button_status[0]  = 0;
+    pad.joystick_cur_val[0] = 0;
+    pad.joystick_cur_val[1] = right_y_mid;
+    pad.joystick_cur_val[2] = right_x_mid;
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
   }
   */
@@ -592,15 +593,15 @@ void oledDisplay() {
       // 副翼
       u8g2.setCursor(6, 38);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", pad.motor_servo_ADC[1] = map(pad.motor_servo_ADC[1], 0, 255, 0, 120));
+      u8g2.printf("%02d°", pad.joystick_cur_val[1] = map(pad.joystick_cur_val[1], 0, 255, 0, 120));
       // 升降舵
       u8g2.setCursor(102, 38);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", pad.motor_servo_ADC[2] = map(pad.motor_servo_ADC[2], 0, 255, 0, 120));
+      u8g2.printf("%02d°", pad.joystick_cur_val[2] = map(pad.joystick_cur_val[2], 0, 255, 0, 120));
       // 油门
       u8g2.setFont(u8g2_font_logisoso22_tr);
       u8g2.setCursor(42, 42);
-      u8g2.printf("%03d", pad.motor_servo_ADC[0]);
+      u8g2.printf("%03d", pad.joystick_cur_val[0]);
       u8g2.sendBuffer();
       break;
     case 1:
