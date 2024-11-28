@@ -3,22 +3,12 @@
 
 ESP32_PICO 手抛飞机自稳遥控器
 
-- 版本：1.0.0    1、 发送包括：自稳开启flag，摇杆中值，油门、升降舵、副翼的ADC值，X轴、Y轴的PID参数，转向系数等。
-                 2、 oled显示pid参数、调整步长、飞机当前姿态
-                 3、 将button按钮功能分为不同功能的函数，功能如下：
-                    * Xp = 右摇杆（左-、右+），Xi = btn_R（左-、右+），Xd = btn_L（左-、右+）
-                    * Yp = 右摇杆（左-、右+），Yi = btn_R（左-、右+），Yd = btn_L（左-、右+）
-                    * step = btn_L（同时打开两个钮子开关，左-、右+）
-                    * coe =  btn_R（同时打开两个钮子开关，左-、右+）
-                    * page = 左1-、右1+（钮子开关全部关闭）
-                    * buzzer = 左2长按，oled = 右2长按
-                 4、 PID、step和coe的调整只能在数据发送开关关闭并且调整开关打开的时候才能进行
-                 5、 开机时需要采集一次摇杆中值，并发送到接收端作为摇杆是否拨动的参考值。
-                 6、 ESP NOW回调函数尽量不要执行复杂的代码。
-                 7、 取消滤波之后摇杆之间相互串扰消失，但是ADC读数会有波动，导致舵机有轻微抽搐。
-                 8、 将解锁进度条读取动画放在setup中执行，确保只执行一次。
-                 9、 重写电池电量算法
-                 10、使用git管理代码
+    branch develop：
+                    由于接收机develop分支的平衡角度计算和操控方式不需要用到角度计算的系数，
+                    所以在本分支中将不再发送角度系数；
+                    发送到飞机端的数据增加微调开关状态，用以作为飞机操控的判断条件，其余代码不变。
+
+本版本用于测试和确定PID参数。
 
 *******************************************************************************************************/
 
@@ -38,12 +28,11 @@ uint8_t airCraftAddress[] = { 0xf0, 0x24, 0xf9, 0x8f, 0xb3, 0x9c }; // PICO_1
 esp_now_peer_info_t peerInfo;
 
 struct Pad {
-  int   button_flag[2]      = {}; // 0、自稳开关         1、襟翼开关
-  int   joystick_mid_val[2] = {}; // 0、副翼中值         1、升降舵中值
-  int   motor_servo_ADC[3]  = {}; // 0、油门             1、副翼；       2、升降舵
-  float x_pid_data[3]       = {}; // 0、X轴比例          1、X轴积分；    2、X轴微分
-  float y_pid_data[3]       = {}; // 0、Y轴比例          1、Y轴积分；    2、Y轴微分
-  float coe[1]              = {}; // 0、舵机角度换算系数
+  int   button_status[3]    = {}; // 0、自稳开关      1、襟翼开关     2、微调开关
+  int   joystick_mid_val[2] = {}; // 0、副翼中值      1、升降舵中值
+  int   joystick_cur_val[3] = {}; // 0、油门          1、副翼；       2、升降舵
+  float x_pid_data[3]       = {}; // 0、X轴比例       1、X轴积分；    2、X轴微分
+  float y_pid_data[3]       = {}; // 0、Y轴比例       1、Y轴积分；    2、Y轴微分
 };
 Pad pad;
 
@@ -142,7 +131,7 @@ float
     airCraftBatteryVoltage, // 飞行器电池电量 单位v
     airCraftPercentage;     // 飞行器电量百分比
 
-/*----------------------------------------------- 微调&襟翼&油门开关 ------------------------------------------------*/
+/*------------------------------------------- 微调&襟翼&油门开关 --------------------------------------------*/
 
 #define BUTTON_THROTTLE 25   // 油门开关
 #define BUTTON_FINETUNING 18 // 微调开关
@@ -170,9 +159,7 @@ byte
     right_x_mid, // 升降舵
     right_y_mid; // 副翼
 
-float turn_coe = 0.46875;
-
-/*------------------------------------------------- 自定义函数 -------------------------------------------------*/
+/*----------------------------------------------- 自定义函数 -----------------------------------------------*/
 
 // 计时器函数
 void toggle() {
@@ -334,15 +321,6 @@ void handleSWfunction() {
   } else {
     adj_switch_Y = "关";
   }
-  // 转向系数步长调整
-  if (oled_display_flag == true && (digitalRead(BUTTON_FINETUNING) == 1) && (digitalRead(BUTTON_FLAP) == 1)) {
-    if (analogRead(STICK_ADJUSTMENT) > 200) {
-      turn_coe += 0.1;
-    } else if (analogRead(STICK_ADJUSTMENT) < 35) {
-      turn_coe -= 0.1;
-    }
-  }
-  //
   // 发送开关
   if (digitalRead(BUTTON_THROTTLE) == true) {
     send_icon = 0xE898;
@@ -357,7 +335,6 @@ void btnShortPressed() {
    * Xp = 左摇杆（左-、右+），Xi = btn_R（左-、右+），Xd = btn_L（左-、右+）
    * Yp = 左摇杆（左-、右+），Yi = btn_R（左-、右+），Yd = btn_L（左-、右+）
    * step = btn_L（同时打开两个钮子开关，左-、右+）
-   * coe =  btn_R（同时打开两个钮子开关，左-、右+）
    * page = 左1-、右1+（钮子开关全部关闭）
    */
 
@@ -512,45 +489,44 @@ void button_identify() {
 // 数据发送
 void transmitData() {
   /*
-    button_flag[2]      = 0、自稳开关         1、襟翼开关
-    joystick_mid_val[2] = 0、副翼中值         1、升降舵中值
-    motor_servo_ADC[3]  = 0、油门             1、副翼；       2、升降舵
-    x_pid_data[3]       = 0、X轴比例          1、X轴积分；    2、X轴微分
-    y_pid_data[3]       = 0、Y轴比例          1、Y轴积分；    2、Y轴微分
-    coe[1]              = 0、舵机角度换算系数
+    button_status[3]      = 0、自稳开关       1、襟翼开关       2、微调开关
+    joystick_mid_val[2] = 0、副翼中值       1、升降舵中值
+    joystick_cur_val[3]  = 0、油门           1、副翼；         2、升降舵
+    x_pid_data[3]       = 0、X轴比例        1、X轴积分；      2、X轴微分
+    y_pid_data[3]       = 0、Y轴比例        1、Y轴积分；      2、Y轴微分
   */
-  pad.button_flag[0]      = digitalRead(BUTTON_THROTTLE);
-  pad.button_flag[1]      = digitalRead(BUTTON_FLAP);
+  pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
+  pad.button_status[1]    = digitalRead(BUTTON_FLAP);
+  pad.button_status[2]    = digitalRead(BUTTON_FINETUNING);
   pad.joystick_mid_val[0] = right_x_mid;
   pad.joystick_mid_val[1] = right_y_mid;
-  pad.motor_servo_ADC[0]  = analogRead(STICK_THROTTLE);
-  pad.motor_servo_ADC[1]  = analogRead(STICK_AILERON);
-  pad.motor_servo_ADC[2]  = analogRead(STICK_ELEVATOR);
+  pad.joystick_cur_val[0] = analogRead(STICK_THROTTLE);
+  pad.joystick_cur_val[1] = analogRead(STICK_AILERON);
+  pad.joystick_cur_val[2] = analogRead(STICK_ELEVATOR);
   pad.x_pid_data[0]       = Xp;
   pad.x_pid_data[1]       = Xi;
   pad.x_pid_data[2]       = Xd;
   pad.y_pid_data[0]       = Yp;
   pad.y_pid_data[1]       = Yi;
   pad.y_pid_data[2]       = Yd;
-  pad.coe[0]              = turn_coe;
 
   // 油门修整
-  if (pad.motor_servo_ADC[0] <= left_x_mid) {
-    pad.motor_servo_ADC[0] = map(pad.motor_servo_ADC[0], ADC_MIN, left_x_mid, ADC_MIN, 127);
+  if (pad.joystick_cur_val[0] <= left_x_mid) {
+    pad.joystick_cur_val[0] = map(pad.joystick_cur_val[0], ADC_MIN, left_x_mid, ADC_MIN, 127);
   } else {
-    pad.motor_servo_ADC[0] = map(pad.motor_servo_ADC[0], left_x_mid + 1, ADC_MAX, 128, ADC_MAX);
+    pad.joystick_cur_val[0] = map(pad.joystick_cur_val[0], left_x_mid + 1, ADC_MAX, 128, ADC_MAX);
   }
   // 副翼修正
-  if (pad.motor_servo_ADC[1] <= right_y_mid) {
-    pad.motor_servo_ADC[1] = map(pad.motor_servo_ADC[1], ADC_MIN, right_y_mid, ADC_MIN, 127);
+  if (pad.joystick_cur_val[1] <= right_y_mid) {
+    pad.joystick_cur_val[1] = map(pad.joystick_cur_val[1], ADC_MIN, right_y_mid, ADC_MIN, 127);
   } else {
-    pad.motor_servo_ADC[1] = map(pad.motor_servo_ADC[1], right_y_mid + 1, ADC_MAX, 128, ADC_MAX);
+    pad.joystick_cur_val[1] = map(pad.joystick_cur_val[1], right_y_mid + 1, ADC_MAX, 128, ADC_MAX);
   }
   // 升降舵修正
-  if (pad.motor_servo_ADC[2] <= right_x_mid) {
-    pad.motor_servo_ADC[2] = map(pad.motor_servo_ADC[2], ADC_MIN, right_x_mid, ADC_MIN, 127);
+  if (pad.joystick_cur_val[2] <= right_x_mid) {
+    pad.joystick_cur_val[2] = map(pad.joystick_cur_val[2], ADC_MIN, right_x_mid, ADC_MIN, 127);
   } else {
-    pad.motor_servo_ADC[2] = map(pad.motor_servo_ADC[2], right_x_mid + 1, ADC_MAX, 128, ADC_MAX);
+    pad.joystick_cur_val[2] = map(pad.joystick_cur_val[2], right_x_mid + 1, ADC_MAX, 128, ADC_MAX);
   }
 
   esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
@@ -562,10 +538,10 @@ void transmitData() {
     }
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
   } else {
-    pad.button_flag[0]  = 0;
-    pad.motor_servo_ADC[0] = 0;
-    pad.motor_servo_ADC[1] = right_y_mid;
-    pad.motor_servo_ADC[2] = right_x_mid;
+    pad.button_status[0]  = 0;
+    pad.joystick_cur_val[0] = 0;
+    pad.joystick_cur_val[1] = right_y_mid;
+    pad.joystick_cur_val[2] = right_x_mid;
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
   }
   */
@@ -618,15 +594,15 @@ void oledDisplay() {
       // 副翼
       u8g2.setCursor(6, 38);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", pad.motor_servo_ADC[1] = map(pad.motor_servo_ADC[1], 0, 255, 0, 120));
+      u8g2.printf("%02d°", pad.joystick_cur_val[1] = map(pad.joystick_cur_val[1], 0, 255, 0, 120));
       // 升降舵
       u8g2.setCursor(102, 38);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", pad.motor_servo_ADC[2] = map(pad.motor_servo_ADC[2], 0, 255, 0, 120));
+      u8g2.printf("%02d°", pad.joystick_cur_val[2] = map(pad.joystick_cur_val[2], 0, 255, 0, 120));
       // 油门
       u8g2.setFont(u8g2_font_logisoso22_tr);
       u8g2.setCursor(42, 42);
-      u8g2.printf("%03d", pad.motor_servo_ADC[0]);
+      u8g2.printf("%03d", pad.joystick_cur_val[0]);
       u8g2.sendBuffer();
       break;
     case 1:
