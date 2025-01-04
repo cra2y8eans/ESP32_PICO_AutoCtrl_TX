@@ -274,6 +274,51 @@ void BatteryReading() {
   if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
     buzzer(1);
   }
+
+/*
+#include <Arduino.h>
+
+const int adcPin = 34; // ADC引脚
+const float R1 = 10000.0; // R1电阻值（Ω）
+const float R2 = 2000.0; // R2电阻值（Ω）
+
+void setup() {
+    Serial.begin(115200);
+}
+
+void loop() {
+    // 读取ADC值
+    int adcValue = analogRead(adcPin);
+    
+    // 将ADC值转换为电压（0-3.3V）
+    float voltage = (adcValue / 4095.0) * 3.3;
+
+    // 根据分压公式计算电池电压
+    float batteryVoltage = voltage * ((R1 + R2) / R2);
+
+    // 计算电池电量百分比
+    float percentage = 0.0;
+    if (batteryVoltage >= 4.2) {
+        percentage = 100.0;
+    } else if (batteryVoltage <= 3.2) {
+        percentage = 0.0;
+    } else {
+        percentage = (batteryVoltage - 3.2) / (4.2 - 3.2) * 100.0;
+    }
+
+    // 输出电池电压和电量百分比
+    Serial.print("Battery Voltage: ");
+    Serial.print(batteryVoltage);
+    Serial.print(" V, ");
+    Serial.print("Battery Percentage: ");
+    Serial.print(percentage);
+    Serial.println(" %");
+
+    delay(1000); // 每秒更新一次
+}
+
+*/
+
 }
 
 // 获取初始参数
