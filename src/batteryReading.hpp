@@ -1,10 +1,11 @@
 #pragma once
 #include <Arduino.h>
+#include <math.h>
 
 class BatReading {
 private:
   int _pin, _r1, _r2, _avg, _resolution;
-  float _maxVoltage, _minVoltage;
+  float _maxVoltage, _minVoltage, _coe;
 
 public:
   float _voltage, _voltsPercentage;
@@ -32,6 +33,7 @@ void BatReading::init(int pin, int resolution, int r1, int r2, float maxVoltage,
   _r2 = r2;
   _maxVoltage = maxVoltage;
   _minVoltage = minVoltage;
+  _coe = pow(2, _resolution);
   analogReadResolution(_resolution);
 }
 
@@ -44,7 +46,7 @@ void BatReading::reading(int avg) {
   }
   // 电压计算
   adcValue = sum / _avg;
-  float volts = (adcValue / 4096.0) * 3.6;
+  float volts = (adcValue / _coe) * 3.6;
   _voltage = volts * (_r1 + _r2) / _r2;
   // 百分比计算
   if (_voltage >= _maxVoltage) {
@@ -70,7 +72,7 @@ BatReading::Bat BatReading::read(int avg) {
   }
   // 电压计算
   adcValue = sum / _avg;
-  float volts = (adcValue / 4096.0) * 3.6;
+  float volts = (adcValue / _coe) * 3.6;
   B.voltage = volts * (_r1 + _r2) / _r2;
   // 百分比计算
   if (B.voltage >= _maxVoltage) {

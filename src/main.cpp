@@ -6,8 +6,8 @@ ESP32_PICO 手抛飞机自稳遥控器
     branch develop：
                     由于接收机develop分支的平衡角度计算和操控方式不需要用到角度计算的系数，
                     所以在本分支中将不再发送角度系数；
-                    发送到飞机端的数据增加微调开关状态，用以作为飞机操控的判断条件，其余代码不变。
-                    增加电量读取的类，重新写电量读取代码
+                    发送到飞机端的数据增加微调开关状态，用以作为飞机操控的判断条件，其余代码不变；
+                    增加电量读取的类，重新写电量读取代码；取消oled显示电量ADC，只显示电压；将飞机电量改为计算完成后再发送回手柄；
 
 本版本用于测试和确定PID参数。
 
@@ -39,8 +39,8 @@ struct Pad {
 Pad pad;
 
 struct Aircraft {
-  int   batteryValue[1] = {}; // 0、电池电量ADC值
   int   servo_angle[2]  = {}; // 0、升降舵机角度   1、副翼舵机角度
+  float batteryValue[2] = {}; // 0、电压           1、电量
   float x_data[2]       = {}; // 0、X轴角度        1、X轴角速度
   float y_data[2]       = {}; // 0、Y轴角度        1、Y轴角速度
 };
@@ -118,23 +118,23 @@ bool          longPressTriggered = false; // 是否已经触发了长按
 #define BATTERY_MIN_VALUE 3.2             // 电池最小电量
 #define BATTERY_MIN_PERCENTAGE 20         // 电池最低百分比
 #define PAD_BATTERY_READING_INTERVAL 2000 // 采样间隔
-#define PAD_BATTERAY_COE 6.9              // 遥控器电量换算系数
-#define BATTERAY_COE 7                    // 接收机电量换算系数
-#define R1 10000
+// #define PAD_BATTERAY_COE 6.9              // 遥控器电量换算系数
+// #define BATTERAY_COE 7                    // 接收机电量换算系数
+#define R1 9350
 #define R2 10000
-#define RESOLUTION 12
+#define RESOLUTION 8
 #define AVG 50
 
 unsigned long previousPadBattery = 0; // 电量读取时间判断
 
 float
     // 遥控端
-    padBatterayReading, // 遥控器ADC电量读取
+    // padBatterayReading, // 遥控器ADC电量读取
     padBatteryVoltage,  // 遥控器电池电量
     padPercentage,      // 遥控器电量百分比
 
     // 飞机端
-    airCraftBatteryReading,
+    // airCraftBatteryReading,
     airCraftBatteryVoltage, // 飞行器电池电量 单位v
     airCraftPercentage;     // 飞行器电量百分比
 
@@ -267,26 +267,38 @@ void unlock() {
 
 // 电压读取与转换
 void BatteryReading() {
+  // unsigned long currentMillis = millis();
+  // if (currentMillis - previousPadBattery >= PAD_BATTERY_READING_INTERVAL) {
+  //   previousPadBattery = currentMillis;
+  //   // 手柄电量
+  //   padBatterayReading = limit_avg_filter(BATTERY_PIN);
+  //   padBatteryVoltage  = (padBatterayReading / ADC_MAX) * PAD_BATTERAY_COE;
+  //   padPercentage      = (1.2 - (BATTERY_MAX_VALUE - padBatteryVoltage)) / 1.2 * 100;
+  //   // 接收机电量
+  //   airCraftBatteryReading = aircraft.batteryValue[0];
+  //   airCraftBatteryVoltage = (airCraftBatteryReading / ADC_MAX) * BATTERAY_COE;                // 转换成电压值，单位v
+  //   airCraftPercentage     = (1.2 - (BATTERY_MAX_VALUE - airCraftBatteryVoltage)) / 1.2 * 100; // 转换成百分比
+  // }
+  // // 低电量报警
+  // if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
+  //   buzzer(1);
+  // }
+
   unsigned long currentMillis = millis();
   if (currentMillis - previousPadBattery >= PAD_BATTERY_READING_INTERVAL) {
     previousPadBattery = currentMillis;
     // 手柄电量
-    padBatterayReading = limit_avg_filter(BATTERY_PIN);
-    padBatteryVoltage  = (padBatterayReading / ADC_MAX) * PAD_BATTERAY_COE;
-    padPercentage      = (1.2 - (BATTERY_MAX_VALUE - padBatteryVoltage)) / 1.2 * 100;
+    BatReading::Bat batStatus = battery.read(AVG);
+    padBatteryVoltage         = batStatus.voltage;
+    padPercentage             = batStatus.voltsPercentage;
     // 接收机电量
-    airCraftBatteryReading = aircraft.batteryValue[0];
-    airCraftBatteryVoltage = (airCraftBatteryReading / ADC_MAX) * BATTERAY_COE;                // 转换成电压值，单位v
-    airCraftPercentage     = (1.2 - (BATTERY_MAX_VALUE - airCraftBatteryVoltage)) / 1.2 * 100; // 转换成百分比
+    airCraftBatteryVoltage = aircraft.batteryValue[0];
+    airCraftPercentage     = aircraft.batteryValue[1];
   }
   // 低电量报警
   if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
     buzzer(1);
   }
-
-  BatReading::Bat batStatus = battery.read(AVG);
-  padBatteryVoltage = batStatus.voltage;
-  padPercentage = batStatus.voltsPercentage;
 }
 
 // 获取初始参数
@@ -297,9 +309,12 @@ void getJoyStickValue() {
   right_x_mid = analogRead(STICK_ELEVATOR);
   right_y_mid = analogRead(STICK_AILERON);
   // 电量初始化
-  padBatterayReading = limit_avg_filter(BATTERY_PIN);
-  padBatteryVoltage  = (padBatterayReading / ADC_MAX) * PAD_BATTERAY_COE;
-  padPercentage      = (1.2 - (BATTERY_MAX_VALUE - padBatteryVoltage)) / 1.2 * 100;
+  // padBatterayReading = limit_avg_filter(BATTERY_PIN);
+  // padBatteryVoltage  = (padBatterayReading / ADC_MAX) * PAD_BATTERAY_COE;
+  // padPercentage      = (1.2 - (BATTERY_MAX_VALUE - padBatteryVoltage)) / 1.2 * 100;
+  // BatReading::Bat batStatus = battery.read(AVG);
+  // padBatteryVoltage         = batStatus.voltage;
+  // padPercentage             = batStatus.voltsPercentage;
 }
 
 // 钮子开关及摇杆调参
@@ -683,13 +698,13 @@ void oledDisplay() {
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
       u8g2.drawUTF8(5, 15, "电量");
+      // u8g2.setCursor(5, 35);
+      // u8g2.printf("遥控 : %.0f", padBatterayReading);
       u8g2.setCursor(5, 35);
-      u8g2.printf("遥控 : %.0f", padBatterayReading);
-      u8g2.setCursor(75, 35);
       u8g2.printf("%.2fv", padBatteryVoltage);
+      // u8g2.setCursor(5, 55);
+      // u8g2.printf("飞机 : %d", aircraft.batteryValue[0]);
       u8g2.setCursor(5, 55);
-      u8g2.printf("飞机 : %d", aircraft.batteryValue[0]);
-      u8g2.setCursor(75, 55);
       u8g2.printf("%.2fv", airCraftBatteryVoltage);
       u8g2.sendBuffer();
       break;
