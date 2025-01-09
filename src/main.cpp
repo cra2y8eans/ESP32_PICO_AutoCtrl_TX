@@ -13,6 +13,7 @@ ESP32_PICO 手抛飞机自稳遥控器
 
 *******************************************************************************************************/
 
+#include "batteryReading.hpp"
 #include <Arduino.h>
 #include <Ticker.h>
 #include <U8g2lib.h>
@@ -20,7 +21,6 @@ ESP32_PICO 手抛飞机自稳遥控器
 #include <Wire.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
-#include "batteryReading.hpp"
 
 /*------------------------------------------------- ESP NOW -------------------------------------------------*/
 
@@ -115,10 +115,15 @@ bool          longPressTriggered = false; // 是否已经触发了长按
 
 #define BATTERY_PIN 36                    // 电池电量读取引脚
 #define BATTERY_MAX_VALUE 4.2             // 电池最大电量
+#define BATTERY_MIN_VALUE 3.2             // 电池最小电量
 #define BATTERY_MIN_PERCENTAGE 20         // 电池最低百分比
 #define PAD_BATTERY_READING_INTERVAL 2000 // 采样间隔
 #define PAD_BATTERAY_COE 6.9              // 遥控器电量换算系数
 #define BATTERAY_COE 7                    // 接收机电量换算系数
+#define R1 10000
+#define R2 10000
+#define RESOLUTION 12
+#define AVG 50
 
 unsigned long previousPadBattery = 0; // 电量读取时间判断
 
@@ -132,6 +137,8 @@ float
     airCraftBatteryReading,
     airCraftBatteryVoltage, // 飞行器电池电量 单位v
     airCraftPercentage;     // 飞行器电量百分比
+
+BatReading battery;
 
 /*------------------------------------------- 微调&襟翼&油门开关 --------------------------------------------*/
 
@@ -277,50 +284,53 @@ void BatteryReading() {
     buzzer(1);
   }
 
-/*
-#include <Arduino.h>
+  BatReading::Bat batStatus = battery.read(AVG);
+  padBatteryVoltage = batStatus.voltage;
+  padPercentage = batStatus.voltsPercentage;
 
-const int adcPin = 34; // ADC引脚
-const float R1 = 10000.0; // R1电阻值（Ω）
-const float R2 = 2000.0; // R2电阻值（Ω）
+  /*
+  #include <Arduino.h>
 
-void setup() {
-    Serial.begin(115200);
-}
+  const int adcPin = 34; // ADC引脚
+  const float R1 = 10000.0; // R1电阻值（Ω）
+  const float R2 = 2000.0; // R2电阻值（Ω）
 
-void loop() {
-    // 读取ADC值
-    int adcValue = analogRead(adcPin);
-    
-    // 将ADC值转换为电压（0-3.3V）
-    float voltage = (adcValue / 4095.0) * 3.3;
+  void setup() {
+      Serial.begin(115200);
+  }
 
-    // 根据分压公式计算电池电压
-    float batteryVoltage = voltage * ((R1 + R2) / R2);
+  void loop() {
+      // 读取ADC值
+      int adcValue = analogRead(adcPin);
 
-    // 计算电池电量百分比
-    float percentage = 0.0;
-    if (batteryVoltage >= 4.2) {
-        percentage = 100.0;
-    } else if (batteryVoltage <= 3.2) {
-        percentage = 0.0;
-    } else {
-        percentage = (batteryVoltage - 3.2) / (4.2 - 3.2) * 100.0;
-    }
+      // 将ADC值转换为电压（0-3.3V）
+      float voltage = (adcValue / 4095.0) * 3.3;
 
-    // 输出电池电压和电量百分比
-    Serial.print("Battery Voltage: ");
-    Serial.print(batteryVoltage);
-    Serial.print(" V, ");
-    Serial.print("Battery Percentage: ");
-    Serial.print(percentage);
-    Serial.println(" %");
+      // 根据分压公式计算电池电压
+      float batteryVoltage = voltage * ((R1 + R2) / R2);
 
-    delay(1000); // 每秒更新一次
-}
+      // 计算电池电量百分比
+      float percentage = 0.0;
+      if (batteryVoltage >= 4.2) {
+          percentage = 100.0;
+      } else if (batteryVoltage <= 3.2) {
+          percentage = 0.0;
+      } else {
+          percentage = (batteryVoltage - 3.2) / (4.2 - 3.2) * 100.0;
+      }
 
-*/
+      // 输出电池电压和电量百分比
+      Serial.print("Battery Voltage: ");
+      Serial.print(batteryVoltage);
+      Serial.print(" V, ");
+      Serial.print("Battery Percentage: ");
+      Serial.print(percentage);
+      Serial.println(" %");
 
+      delay(1000); // 每秒更新一次
+  }
+
+  */
 }
 
 // 获取初始参数
@@ -771,6 +781,8 @@ void setup() {
   memcpy(peerInfo.peer_addr, airCraftAddress, 6); // 设置配对设备的MAC地址并储存，参数为拷贝地址、拷贝对象、数据长度
   peerInfo.channel = 1;                           // 设置通信频道
   esp_now_add_peer(&peerInfo);                    // 添加通信对象
+
+  battery.init(BATTERY_PIN, RESOLUTION, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
 }
 
 void loop() {
