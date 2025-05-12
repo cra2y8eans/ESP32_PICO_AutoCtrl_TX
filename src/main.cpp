@@ -1,8 +1,10 @@
 
 /******************************************************************************************************
 
-注意！！！此版本名为auto control，实为无刷电机遥控器的代码！如需使用自稳代码，请使用一下地址版本：
-F:\Programming\MCU\ESP32\project\PlatformIO\32\PICO\ESP32_PICO_AutoCtrl_TX\
+68手抛机无刷电机
+
+    此版本为使用版本，在自稳git仓库中创建了一个brushless分支进行储存备份。
+    如需要接收机选择、差速混控的版本，可在onedrive文件夹中使用 esp32_brushless_tx。
 
 *******************************************************************************************************/
 
@@ -19,7 +21,6 @@ F:\Programming\MCU\ESP32\project\PlatformIO\32\PICO\ESP32_PICO_AutoCtrl_TX\
 
 uint8_t airCraftAddress[] = { 0x48, 0xca, 0x43, 0xed, 0xc4, 0x80 }; // version 1.0.1
 // uint8_t airCraftAddress[] = { 0x48, 0xca, 0x43, 0xed, 0xc4, 0x58 }; // version 1.0.2
-uint8_t airCraftAddress[] ;
 
 // 创建ESP NOW通讯实例
 esp_now_peer_info_t peerInfo;
