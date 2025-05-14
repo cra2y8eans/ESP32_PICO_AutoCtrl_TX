@@ -474,8 +474,8 @@ void button_identify() {
 // 数据发送
 void transmitData() {
   /*
-      int   button_status[3]    = {}; // 0、自稳开关      1、襟翼开关     2、微调开关
-      int   joystick_cur_val[4] = {}; // 0、左电机油门    1、右电机油门   2、副翼         3、升降舵
+      int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
+      int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
       float diffrential_coe;
   */
   pad.button_status[0] = digitalRead(BUTTON_THROTTLE);
@@ -552,6 +552,11 @@ void oledDisplay_servo() {
 }
 
 void oledDisplay_motor() {
+  motor_l_diffrential = left_y_mid - limit_avg_filter(STICK_DIFFRENTIAL);
+  motor_r_diffrential = limit_avg_filter(STICK_DIFFRENTIAL) - left_y_mid;
+  constrain(motor_l_diffrential, ADC_MIN, ADC_MAX / 2);
+  constrain(motor_r_diffrential, ADC_MIN, ADC_MAX / 2);
+
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
   u8g2.drawUTF8(5, 10, "差速");
