@@ -4,10 +4,12 @@
 ESP32_PICO 手抛飞机自稳遥控器
 
           把遥控器发送的数据统一起来，实现一个遥控器连接操控多个设备的功能。
+          使用NONE的低通滤波，校正摇杆虚位和死区。
 
 *******************************************************************************************************/
 
 #include "batteryReading.hpp"
+#include "my_analog_hat.h"
 #include <Arduino.h>
 #include <Ticker.h>
 #include <U8g2lib.h>
