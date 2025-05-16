@@ -477,17 +477,29 @@ void transmitData() {
       int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
       float diffrential_coe;
   */
-  pad.button_status[0] = digitalRead(BUTTON_THROTTLE);
-  pad.button_status[1] = digitalRead(BUTTON_FLAP);
-  pad.button_status[2] = digitalRead(BUTTON_FINETUNING);
 
-  pad.joystick_cur_val[0] = getAnalogHat(throttle);
-  pad.joystick_cur_val[1] = getAnalogHat(diffrential);
-  pad.joystick_cur_val[2] = getAnalogHat(aileron);
-  pad.joystick_cur_val[3] = getAnalogHat(elevator);
-  pad.diffrential_coe     = diffrential_coe;
+  if (digitalRead(BUTTON_THROTTLE) == 1) {
+    pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
+    pad.button_status[1]    = digitalRead(BUTTON_FLAP);
+    pad.button_status[2]    = digitalRead(BUTTON_FINETUNING);
+    pad.joystick_cur_val[0] = getAnalogHat(throttle);
+    pad.joystick_cur_val[1] = getAnalogHat(diffrential);
+    pad.joystick_cur_val[2] = getAnalogHat(aileron);
+    pad.joystick_cur_val[3] = getAnalogHat(elevator);
+    pad.diffrential_coe     = diffrential_coe;
 
-  esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+  } else {
+    // 关闭发送按钮或关机断联
+    pad.button_status[0]    = 0;
+    pad.button_status[1]    = 0;
+    pad.button_status[2]    = 0;
+    pad.joystick_cur_val[0] = -255;
+    pad.joystick_cur_val[1] = 0;
+    pad.joystick_cur_val[2] = 0;
+    pad.joystick_cur_val[3] = 0;
+    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+  }
 }
 
 // OLED显示
