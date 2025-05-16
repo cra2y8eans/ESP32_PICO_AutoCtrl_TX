@@ -30,8 +30,8 @@ uint8_t airCraftAddress[6]    = {};
 esp_now_peer_info_t peerInfo;
 
 struct Pad {
-  int   button_status[3]    = {}; // 0、自稳开关      1、襟翼开关     2、微调开关
-  int   joystick_cur_val[4] = {}; // 0、左电机油门    1、右电机油门   2、副翼         3、升降舵
+  int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
+  int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
   float diffrential_coe;
 };
 Pad pad;
