@@ -4,7 +4,8 @@
 ESP32_PICO 手抛飞机自稳遥控器
 
           把遥控器发送的数据统一起来，实现一个遥控器连接操控多个设备的功能。
-          使用none的低通滤波校正摇杆虚位和死区问题.
+          通过none的低通滤波校正摇杆虚位和死区问题。
+          使用freertos给数据发送单独创建一个任务，并以固定频率发送（50~80hz）。
 
 *******************************************************************************************************/
 
@@ -17,6 +18,8 @@ ESP32_PICO 手抛飞机自稳遥控器
 #include <Wire.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 /*------------------------------------------------- ESP NOW -------------------------------------------------*/
 
@@ -61,7 +64,6 @@ volatile bool oled_display_flag = true;
 uint8_t num      = 4; // 总页数
 uint8_t page     = 0; // 正在显示的页面
 uint8_t progress = 0;
-// String RSSI_status = "";
 
 int speaker        = 59239;  // 扬声器图标
 int esp_now_signal = 0xe870; // 连接图标
@@ -78,9 +80,6 @@ Ticker buzzerMode;
 
 /*------------------------------------------------- 开机锁 -------------------------------------------------*/
 
-// volatile bool paringMax  = false; // 油门推到最大标志位
-// volatile bool paringMin  = false; // 油门推到最小标志位
-// volatile bool RC_confirm = false; // 接收机选择标志位
 uint8_t RC_num     = 0; // 接收机编号
 String  RC_version = "";
 
@@ -148,18 +147,6 @@ String flap_btn_status       = "";
 
 int   ADC_MAX         = pow(2, ADC_RESOLUTION);            // ADC最大值
 float diffrential_coe = 0.35, diffrential_adj_step = 0.01; // 转向系数和微调步长
-
-// // 摇杆初始读数
-// int left_y_mid;  // 差速中间值
-// int left_y_min;  // 油门最小值
-// int left_x_mid;  // 油门中间值
-// int right_x_mid; // 升降舵中间值
-// int right_y_mid; // 副翼中间值
-
-// int throttle_base_val;   // 油门基础值
-// int diffrential_reading; // 差速摇杆读数
-// int motor_l_diffrential; // 左电机转向差速值
-// int motor_r_diffrential; // 右电机转向差速值
 
 /*------------------------------------------------- 自定义函数 -------------------------------------------------*/
 
@@ -337,15 +324,6 @@ void BatteryReading() {
   }
 }
 
-// 获取初始参数
-// void getJoyStickValue() {
-//   // 摇杆参数初始化
-//   left_x_mid  = ADC_MAX / 2;                   // 油门中值
-//   left_y_mid  = analogRead(STICK_DIFFRENTIAL); // 差速中值
-//   right_x_mid = analogRead(STICK_ELEVATOR);    // 升降舵中值
-//   right_y_mid = analogRead(STICK_AILERON);     // 副翼中值
-// }
-
 // 钮子开关及摇杆调参
 void handleSWfunction() {
   // 只有当发送开关打开的时候，其余两个开关才能有效打开。
@@ -503,108 +481,6 @@ void transmitData() {
 }
 
 // OLED显示
-
-// void oledDisplay_main() {
-//   int throttle = pad.joystick_cur_val[0];
-//   int aileron  = pad.joystick_cur_val[2];
-//   int elevator = pad.joystick_cur_val[3];
-//   // 设备状态
-//   u8g2.clearBuffer();
-//   u8g2.setFont(aircraft_14);
-//   u8g2.drawGlyph(59, 14, speaker); // 扬声器图标
-//   u8g2.drawGlyph(2, 63, 0xe7fc);   // 手柄图标
-//   u8g2.drawGlyph(86, 62, 0xe709);  // 飞机图标
-//   // 手柄电量
-//   u8g2.setCursor(24, 61);
-//   u8g2.setFont(u8g2_font_7x14B_tf);
-//   u8g2.printf("%.0f%%", padPercentage);
-//   // 信号
-//   u8g2.setFont(aircraft_pad_icon_14);
-//   u8g2.drawGlyph(2, 12, esp_now_signal); // 信号图标
-//   u8g2.drawGlyph(110, 13, send_icon);    // 发送开关图标
-//   // 连接状态
-//   u8g2.setCursor(105, 12);
-//   u8g2.setFont(u8g2_font_6x13B_tf);
-//   u8g2.printf("%s", RSSI_status);
-//   // 飞机电量
-//   u8g2.setCursor(106, 61);
-//   u8g2.setFont(u8g2_font_7x14B_tf);
-//   u8g2.printf("%.0f%%", airCraftPercentage);
-//   // 副翼
-//   u8g2.setCursor(6, 38);
-//   u8g2.setFont(u8g2_font_7x14B_tf);
-//   u8g2.printf("%02d°", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE));
-//   // 升降舵
-//   u8g2.setCursor(102, 38);
-//   u8g2.setFont(u8g2_font_7x14B_tf);
-//   u8g2.printf("%02d°", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE));
-//   // 油门
-//   u8g2.setFont(u8g2_font_logisoso22_tr);
-//   u8g2.setCursor(42, 42);
-//   u8g2.printf("%03d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 256));
-//   u8g2.sendBuffer();
-// }
-
-// void oledDisplay_servo() {
-//   int aileron  = pad.joystick_cur_val[2];
-//   int elevator = pad.joystick_cur_val[3];
-//   u8g2.clearBuffer();
-//   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-//   u8g2.drawUTF8(5, 10, "舵机");
-//   u8g2.setCursor(75, 10);
-//   u8g2.printf("襟翼 : %s", flap_btn_status); // 微调开关
-//   u8g2.setCursor(5, 30);
-//   u8g2.printf("副翼 ADC : %03d", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, ADC_MAX)); // ADC值
-//   u8g2.setCursor(5, 45);
-//   u8g2.printf("左 : %02d°", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE)); // 左副翼实时角度
-//   u8g2.setCursor(70, 45);
-//   u8g2.printf("右 : %02d°", SERVO_MAX_ANGLE - aileron); // 右副翼实时角度
-//   u8g2.setCursor(5, 60);
-//   u8g2.printf("升降 ADC : %03d", elevator = map(pad.joystick_cur_val[2], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, ADC_MAX)); // ADC值
-//   u8g2.setCursor(100, 60);
-//   u8g2.printf("%02d°", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE)); // 升降舵实时角度
-//   u8g2.sendBuffer();
-// }
-
-// void oledDisplay_motor() {
-//   int throttle = pad.joystick_cur_val[0];
-//   int diffrential_r, diffrential_l;
-//   if (pad.joystick_cur_val[1] >= 0) {
-//     diffrential_l = pad.joystick_cur_val[1];
-//   } else if (pad.joystick_cur_val[1] <= 0) {
-//     diffrential_r = abs(pad.joystick_cur_val[1]);
-//   }
-//   u8g2.clearBuffer();
-//   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-//   u8g2.drawUTF8(5, 10, "差速");
-//   u8g2.setCursor(75, 10);
-//   u8g2.printf("微调 : %s", finetuning_btn_status); // 微调开关
-//   u8g2.setCursor(5, 30);
-//   u8g2.printf("油门: %d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 256)); // 8位ADC值
-//   u8g2.setCursor(70, 30);
-//   u8g2.printf("系数: %.2f", diffrential_coe); // 转向系数
-//   u8g2.setCursor(5, 45);
-//   u8g2.printf("左 : %d", diffrential_r); // 左电机实时油门8位ADC值  pad.joystick_cur_val[0] = map(pad.joystick_cur_val[0], ADC_MIN, ADC_MAX / 2, ADC_MIN, 128));
-//   u8g2.setCursor(70, 45);
-//   u8g2.printf("值 : %d", diffrential_r * diffrential_coe); // 左电机转向加速
-//   u8g2.setCursor(5, 60);
-//   u8g2.printf("右 : %d", diffrential_l); // 右电机实时油门8位ADC值  pad.joystick_cur_val[1] = map(pad.joystick_cur_val[1], ADC_MIN, ADC_MAX / 2, ADC_MIN, 128));
-//   u8g2.setCursor(70, 60);
-//   u8g2.printf("值 : %d", diffrential_l * diffrential_coe); // 右电机转向加速
-//   u8g2.sendBuffer();
-// }
-
-// void oledDisplay_battery() {
-//   u8g2.clearBuffer();
-//   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-//   u8g2.drawUTF8(5, 15, "电量");
-//   u8g2.setCursor(5, 35);
-//   u8g2.printf("遥控器: %.2fv", padBatteryVoltage);
-//   u8g2.setCursor(5, 55);
-//   u8g2.printf("接收机: %.2fv", airCraftBatteryVoltage);
-//   u8g2.sendBuffer();
-// }
-
 void oledDisplay() {
   int throttle    = pad.joystick_cur_val[0];
   int diffrential = pad.joystick_cur_val[1];
@@ -634,10 +510,6 @@ void oledDisplay() {
       u8g2.setFont(aircraft_pad_icon_14);
       u8g2.drawGlyph(2, 12, esp_now_signal); // 信号图标
       u8g2.drawGlyph(110, 13, send_icon);    // 发送开关图标
-      // 连接状态
-      // u8g2.setCursor(105, 12);
-      // u8g2.setFont(u8g2_font_6x13B_tf);
-      // u8g2.printf("%s", RSSI_status);
       // 飞机电量
       u8g2.setCursor(106, 61);
       u8g2.setFont(u8g2_font_7x14B_tf);
