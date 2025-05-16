@@ -449,34 +449,39 @@ void button_identify() {
 }
 
 // 数据发送
-void transmitData() {
+void transmitData(void* pt) {
   /*
       int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
       int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
       float diffrential_coe;
   */
 
-  if (digitalRead(BUTTON_THROTTLE) == 1) {
-    pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
-    pad.button_status[1]    = digitalRead(BUTTON_FLAP);
-    pad.button_status[2]    = digitalRead(BUTTON_FINETUNING);
-    pad.joystick_cur_val[0] = getAnalogHat(throttle);
-    pad.joystick_cur_val[1] = getAnalogHat(diffrential);
-    pad.joystick_cur_val[2] = getAnalogHat(aileron);
-    pad.joystick_cur_val[3] = getAnalogHat(elevator);
-    pad.diffrential_coe     = diffrential_coe;
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
+  while (1) {
+    if (digitalRead(BUTTON_THROTTLE) == 1) {
+      pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
+      pad.button_status[1]    = digitalRead(BUTTON_FLAP);
+      pad.button_status[2]    = digitalRead(BUTTON_FINETUNING);
+      pad.joystick_cur_val[0] = getAnalogHat(throttle);
+      pad.joystick_cur_val[1] = getAnalogHat(diffrential);
+      pad.joystick_cur_val[2] = getAnalogHat(aileron);
+      pad.joystick_cur_val[3] = getAnalogHat(elevator);
+      pad.diffrential_coe     = diffrential_coe;
 
-    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
-  } else {
-    // 关闭发送按钮或关机断联
-    pad.button_status[0]    = 0;
-    pad.button_status[1]    = 0;
-    pad.button_status[2]    = 0;
-    pad.joystick_cur_val[0] = -255;
-    pad.joystick_cur_val[1] = 0;
-    pad.joystick_cur_val[2] = 0;
-    pad.joystick_cur_val[3] = 0;
-    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+    } else {
+      // 关闭发送按钮或关机断联
+      pad.button_status[0]    = 0;
+      pad.button_status[1]    = 0;
+      pad.button_status[2]    = 0;
+      pad.joystick_cur_val[0] = -255;
+      pad.joystick_cur_val[1] = 0;
+      pad.joystick_cur_val[2] = 0;
+      pad.joystick_cur_val[3] = 0;
+      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+    }
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 
@@ -619,11 +624,13 @@ void setup() {
 
   // 电量读取初始化
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
+
+  // 创建freertos任务
+  xTaskCreate(transmitData, "sendData", 1024 * 3, NULL, 1, NULL);
 }
 
 void loop() {
   BatteryReading();
-  transmitData();
   button_identify();
   oledDisplay();
   handleSWfunction();
