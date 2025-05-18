@@ -6,6 +6,7 @@ ESP32_PICO 手抛飞机自稳遥控器
           把遥控器发送的数据统一起来，实现一个遥控器连接操控多个设备的功能。
           通过none的低通滤波校正摇杆虚位和死区问题。
           使用freertos给数据发送单独创建一个任务，并以固定频率发送（50~80hz）。
+          电池电量读取和报警每3秒执行一次。
 
 *******************************************************************************************************/
 
@@ -106,11 +107,9 @@ bool          longPressTriggered = false; // 是否已经触发了长按
 #define BATTERY_MAX_VALUE 4.2             // 电池最大电量
 #define BATTERY_MIN_VALUE 3.2             // 电池最小电量
 #define BATTERY_MIN_PERCENTAGE 20         // 电池最低百分比
-#define PAD_BATTERY_READING_INTERVAL 2000 // 采样间隔
+#define PAD_BATTERY_READING_INTERVAL 3000 // 采样间隔
 #define R1 10000
 #define R2 9950
-
-unsigned long previousPadBattery = 0; // 电量读取时间判断
 
 float
     // 遥控端
@@ -306,10 +305,8 @@ void unlock() {
 }
 
 // 电压读取与转换
-void BatteryReading() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousPadBattery >= PAD_BATTERY_READING_INTERVAL) {
-    previousPadBattery = currentMillis;
+void BatteryReading(void* pt) {
+  while (1) {
     // 手柄电量
     BatReading::Bat batStatus = battery.read(AVERAGE_FILTER);
     padBatteryVoltage         = batStatus.voltage;
@@ -317,10 +314,11 @@ void BatteryReading() {
     // 接收机电量
     airCraftBatteryVoltage = aircraft.batteryValue[0];
     airCraftPercentage     = aircraft.batteryValue[1];
-  }
-  // 低电量报警
-  if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
-    buzzer(1);
+    // 低电量报警
+    if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
+      buzzer(1);
+    }
+    vTaskDelay(PAD_BATTERY_READING_INTERVAL);
   }
 }
 
@@ -353,7 +351,7 @@ void handleSWfunction() {
   }
 }
 
-// 短按按钮功能
+// 短按功能
 void btnShortPressed() {
   //  翻页
   if (oled_display_flag == true) {
@@ -384,6 +382,7 @@ void btnShortPressed() {
   }
 }
 
+// 长按功能
 void btnLongPressed() {
   /*  buzzer = 左2长按，oled = 右2长按  */
   switch (button_pin) {
@@ -526,7 +525,7 @@ void oledDisplay() {
       // 升降舵
       u8g2.setCursor(102, 38);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE));
+      u8g2.printf("%02d°", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20)));
       // 油门
       u8g2.setFont(u8g2_font_logisoso22_tr);
       u8g2.setCursor(42, 42);
@@ -548,7 +547,7 @@ void oledDisplay() {
       u8g2.setCursor(5, 60);
       u8g2.printf("升降 ADC : %03d", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, ADC_MAX)); // ADC值
       u8g2.setCursor(100, 60);
-      u8g2.printf("%02d°", elevator = map(elevator, ADC_MIN, ADC_MAX, ADC_MIN, SERVO_MAX_ANGLE)); // 升降舵实时角度
+      u8g2.printf("%02d°", elevator = map(elevator, ADC_MIN, ADC_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20))); // 升降舵实时角度
       u8g2.sendBuffer();
       break;
     case 2:
@@ -613,9 +612,6 @@ void setup() {
   // 初始化摇杆
   setupAnalogHat();
 
-  // 遥控器参数初始化
-  // getJoyStickValue();
-
   // 遥控器解锁
   unlock();
 
@@ -626,11 +622,11 @@ void setup() {
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
 
   // 创建freertos任务
-  xTaskCreate(transmitData, "sendData", 1024 * 3, NULL, 1, NULL);
+  xTaskCreate(transmitData, "sendData", 1024 * 4, NULL, 1, NULL);
+  xTaskCreate(BatteryReading, "BatteryReading", 1024 * 2, NULL, 1, NULL);
 }
 
 void loop() {
-  BatteryReading();
   button_identify();
   oledDisplay();
   handleSWfunction();
