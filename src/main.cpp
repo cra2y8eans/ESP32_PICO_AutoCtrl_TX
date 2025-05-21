@@ -81,11 +81,6 @@ uint8_t num      = 2; // 总页数
 uint8_t page     = 0; // 正在显示的页面
 uint8_t progress = 0;
 
-// int speaker        = 59239;  // 扬声器图标
-// int esp_now_signal = 0xe870; // 连接图标
-// int send_icon      = 0xe71b; // 发送开关图标
-// int lock           = 0xe72e;
-
 int speaker, esp_now_signal, send_icon, lock;
 
 /*------------------------------------------------- 蜂鸣器 -------------------------------------------------*/
@@ -429,17 +424,10 @@ void button_identify() {
   lastButtonState = reading;
 }
 
-// 数据发送
-void transmitData(void* pt) {
-  /*
-      int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
-      int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
-      float diffrential_coe;
-  */
-  Pad              pad; // 声明结构体局部变量
-  TickType_t       xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
+// 读取数据
+void getData(void* pt) {
   while (1) {
+    Pad pad;
     if (digitalRead(BUTTON_THROTTLE) == 1) {
       pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
       pad.button_status[1]    = digitalRead(BUTTON_FLAP);
@@ -463,7 +451,23 @@ void transmitData(void* pt) {
       send_icon               = SEND_FAILED;
     }
     xQueueOverwrite(padQueue, &pad);
-    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+  }
+}
+
+// 数据发送
+void transmitData(void* pt) {
+  /*
+      int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
+      int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
+      float diffrential_coe;
+  */
+  Pad              pad; // 声明结构体局部变量
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
+  while (1) {
+    if (xQueueReceive(padQueue, &pad, portMAX_DELAY) == pdPASS) {
+      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+    }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
@@ -557,6 +561,7 @@ void setup() {
   u8g2.enableUTF8Print(); // 显示中文使能
 
   // 创建freertos任务
+  xTaskCreatePinnedToCore(getData, "getData", 1024 * 2, NULL, 4, NULL, 1);
   xTaskCreatePinnedToCore(transmitData, "sendData", 1024 * 2, NULL, 6, NULL, 1);
   xTaskCreatePinnedToCore(BatteryReading, "BatteryReading", 1024, NULL, 2, NULL, 1);
   // 创建队列
