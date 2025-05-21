@@ -41,14 +41,16 @@ typedef struct {
   int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
   float diffrential_coe;
 } Pad;
+Pad pad;
 
 typedef struct {
   float batteryValue[2] = {}; // 0、电压           1、电量
 } Aircraft;
+Aircraft aircraft;
 
 // 声明数据队列句柄
-QueueHandle_t padQueue;
-QueueHandle_t aircraftQueue;
+// QueueHandle_t padQueue      = xQueueCreate(1, sizeof(Pad)); // 队列长度1，覆盖模式
+// QueueHandle_t aircraftQueue = xQueueCreate(1, sizeof(Aircraft));
 
 bool esp_connected;
 
@@ -170,9 +172,9 @@ void OnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
 
 // 收到消息后的回调
 void OnDataRecv(const uint8_t* mac, const uint8_t* incomingData, int len) {
-  Aircraft aircraft;
+  // Aircraft aircraft;
   memcpy(&aircraft, incomingData, sizeof(aircraft));
-  xQueueOverwrite(aircraftQueue, &aircraft);
+  // xQueueOverwrite(aircraftQueue, &aircraft);
 }
 
 // ESP NOW 初始化及连接
@@ -323,10 +325,10 @@ void BatteryReading(void* pt) {
     padBatteryVoltage         = batStatus.voltage;
     padPercentage             = batStatus.voltsPercentage;
     // 接收机电量
-    if (xQueueReceive(aircraftQueue, &aircraft, 0) == pdPASS) {
+    // if (xQueueReceive(aircraftQueue, &aircraft, 0) == pdPASS) {
       airCraftBatteryVoltage = aircraft.batteryValue[0];
       airCraftPercentage     = aircraft.batteryValue[1];
-    }
+    // }
     // 低电量报警
     if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
       buzzer(1);
@@ -424,10 +426,47 @@ void button_identify() {
   lastButtonState = reading;
 }
 
-// 读取数据
-void getData(void* pt) {
+// // 读取数据
+// void getData(void* pt) {
+//   while (1) {
+//     Pad pad;
+//     if (digitalRead(BUTTON_THROTTLE) == 1) {
+//       pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
+//       pad.button_status[1]    = digitalRead(BUTTON_FLAP);
+//       pad.button_status[2]    = digitalRead(BUTTON_FINETUNING);
+//       pad.joystick_cur_val[0] = getAnalogHat(throttle);
+//       pad.joystick_cur_val[1] = getAnalogHat(diffrential);
+//       pad.joystick_cur_val[2] = getAnalogHat(aileron);
+//       pad.joystick_cur_val[3] = getAnalogHat(elevator);
+//       pad.diffrential_coe     = 0;
+//       send_icon               = SEND_SUCCESSED;
+//     } else {
+//       // 关闭发送按钮或关机断联
+//       pad.button_status[0]    = 0;
+//       pad.button_status[1]    = 0;
+//       pad.button_status[2]    = 0;
+//       pad.joystick_cur_val[0] = -255;
+//       pad.joystick_cur_val[1] = 0;
+//       pad.joystick_cur_val[2] = 0;
+//       pad.joystick_cur_val[3] = 0;
+//       pad.diffrential_coe     = 0;
+//       send_icon               = SEND_FAILED;
+//     }
+//     xQueueOverwrite(padQueue, &pad);
+//   }
+// }
+
+// 数据发送
+void transmitData(void* pt) {
+  /*
+      int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
+      int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
+      float diffrential_coe;
+  */
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
   while (1) {
-    Pad pad;
+    // Pad pad; // 声明结构体局部变量
     if (digitalRead(BUTTON_THROTTLE) == 1) {
       pad.button_status[0]    = digitalRead(BUTTON_THROTTLE);
       pad.button_status[1]    = digitalRead(BUTTON_FLAP);
@@ -450,38 +489,21 @@ void getData(void* pt) {
       pad.diffrential_coe     = 0;
       send_icon               = SEND_FAILED;
     }
-    xQueueOverwrite(padQueue, &pad);
-  }
-}
-
-// 数据发送
-void transmitData(void* pt) {
-  /*
-      int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
-      int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
-      float diffrential_coe;
-  */
-  Pad              pad; // 声明结构体局部变量
-  TickType_t       xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
-  while (1) {
-    if (xQueueReceive(padQueue, &pad, portMAX_DELAY) == pdPASS) {
-      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
-    }
+    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 
 // OLED显示
 void oledDisplay() {
-  Pad pad;
   if (oled_display_flag == true) {
-    switch (page) {
-    case 0:
-      if (xQueueReceive(padQueue, &pad, 0) == pdPASS) {
-        int throttle = pad.joystick_cur_val[0];
-        int aileron  = pad.joystick_cur_val[2];
-        int elevator = pad.joystick_cur_val[3];
+    // Pad pad;
+    // if (xQueueReceive(padQueue, &pad, 0) == pdPASS) {
+      int throttle = pad.joystick_cur_val[0];
+      int aileron  = pad.joystick_cur_val[2];
+      int elevator = pad.joystick_cur_val[3];
+      switch (page) {
+      case 0:
         // 设备状态
         u8g2.clearBuffer();
         u8g2.setFont(aircraft_14);
@@ -508,47 +530,47 @@ void oledDisplay() {
         u8g2.setFont(u8g2_font_logisoso22_tr);
         u8g2.setCursor(42, 42);
         u8g2.printf("%03d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255));
+        // 飞机电量
+        u8g2.setCursor(106, 61);
+        u8g2.setFont(u8g2_font_7x14B_tf);
+        u8g2.printf("%.0f%%", airCraftBatteryVoltage);
+        u8g2.sendBuffer();
+        break;
+      case 1:
+        u8g2.clearBuffer();
+        u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
+        u8g2.drawUTF8(5, 15, "电量");
+        u8g2.setCursor(5, 35);
+        u8g2.printf("遥控器: %.2fv", padBatteryVoltage);
+        u8g2.setCursor(5, 55);
+        u8g2.printf("接收机: %.2fv", airCraftBatteryVoltage);
+        u8g2.sendBuffer();
+        break;
+      default:
+        break;
       }
-      // 飞机电量
-      u8g2.setCursor(106, 61);
-      u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%.0f%%", airCraftBatteryVoltage);
-      u8g2.sendBuffer();
-      break;
-    case 1:
-      u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-      u8g2.drawUTF8(5, 15, "电量");
-      u8g2.setCursor(5, 35);
-      u8g2.printf("遥控器: %.2fv", padBatteryVoltage);
-      u8g2.setCursor(5, 55);
-      u8g2.printf("接收机: %.2fv", airCraftBatteryVoltage);
-      u8g2.sendBuffer();
-      break;
-    default:
-      break;
-    }
+    // }
   } else {
     u8g2.clearBuffer();
     u8g2.sendBuffer();
   }
 }
 
-// 错误处理
-void error() {
-  if (padQueue == NULL || aircraftQueue == NULL || esp_now_init() != ESP_OK) {
-    while (1) {
-      u8g2.clearBuffer();
-      u8g2.setFont(pad_35);
-      u8g2.drawGlyph(44, 38, 0xf140);
-      u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-      u8g2.drawUTF8(18, 56, "初始化失败");
-      u8g2.sendBuffer();
-      delay(3000);
-      ESP.restart();
-    }
-  }
-}
+// // 错误处理
+// void error() {
+//   if (padQueue == NULL || aircraftQueue == NULL || esp_now_init() != ESP_OK) {
+//     while (1) {
+//       u8g2.clearBuffer();
+//       u8g2.setFont(pad_35);
+//       u8g2.drawGlyph(44, 38, 0xf140);
+//       u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
+//       u8g2.drawUTF8(18, 56, "初始化失败");
+//       u8g2.sendBuffer();
+//       delay(3000);
+//       ESP.restart();
+//     }
+//   }
+// }
 
 /*-------------------------------------------------------------------------------------------------------------*/
 
@@ -561,12 +583,12 @@ void setup() {
   u8g2.enableUTF8Print(); // 显示中文使能
 
   // 创建freertos任务
-  xTaskCreatePinnedToCore(getData, "getData", 1024 * 2, NULL, 4, NULL, 1);
+  // xTaskCreatePinnedToCore(getData, "getData", 1024 * 2, NULL, 4, NULL, 1);
   xTaskCreatePinnedToCore(transmitData, "sendData", 1024 * 2, NULL, 6, NULL, 1);
   xTaskCreatePinnedToCore(BatteryReading, "BatteryReading", 1024, NULL, 2, NULL, 1);
   // 创建队列
-  padQueue      = xQueueCreate(1, sizeof(Pad)); // 队列长度1，覆盖模式
-  aircraftQueue = xQueueCreate(1, sizeof(Aircraft));
+  // padQueue      = xQueueCreate(1, sizeof(Pad)); // 队列长度1，覆盖模式
+  // aircraftQueue = xQueueCreate(1, sizeof(Aircraft));
 
   // 引脚初始化
   pinMode(BUTTON_THROTTLE, INPUT_PULLDOWN);   // 油门开关
@@ -590,7 +612,7 @@ void setup() {
   // 电量读取初始化
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
 
-  error();
+  // error();
 }
 
 void loop() {
