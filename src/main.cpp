@@ -36,17 +36,19 @@ uint8_t airCraftAddress[6]    = {};
 // 创建ESP NOW通讯实例
 esp_now_peer_info_t peerInfo;
 
-struct Pad {
+typedef struct {
   int   button_status[3]    = {}; // 0、自稳开关    1、襟翼开关     2、微调开关
   int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
   float diffrential_coe;
-};
-Pad pad;
+} Pad;
 
-struct Aircraft {
+typedef struct {
   float batteryValue[2] = {}; // 0、电压           1、电量
-};
-Aircraft aircraft;
+} Aircraft;
+
+// 声明数据队列句柄
+QueueHandle_t padQueue;
+QueueHandle_t aircraftQueue;
 
 bool esp_connected;
 
@@ -55,6 +57,16 @@ bool esp_connected;
 #define SDA_PIN 21
 #define SCL_PIN 22
 #define OLED_I2C_ADDR 0x3C // oled屏幕I2C地址
+#define SPEAKER_ON 59239
+#define SPEAKER_OFF 59215
+#define ESP_NOW_CONNECTED 0xe870
+#define ESP_NOW_DISCONNECTED 0xe791
+#define LOCK 0xe72e
+#define UNLOCK 0xe785
+#define SEND_SUCCESSED 0xE898
+#define SEND_FAILED 0xf140
+#define ICON_AIRCRAFT 0xe709
+#define ICON_HANDHELD 0xe7fc
 
 // 构造oled对象
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
@@ -69,10 +81,12 @@ uint8_t num      = 2; // 总页数
 uint8_t page     = 0; // 正在显示的页面
 uint8_t progress = 0;
 
-int speaker        = 59239;  // 扬声器图标
-int esp_now_signal = 0xe870; // 连接图标
-int send_icon      = 0xe71b; // 发送开关图标
-int lock           = 0xe72e;
+// int speaker        = 59239;  // 扬声器图标
+// int esp_now_signal = 0xe870; // 连接图标
+// int send_icon      = 0xe71b; // 发送开关图标
+// int lock           = 0xe72e;
+
+int speaker, esp_now_signal, send_icon, lock;
 
 /*------------------------------------------------- 蜂鸣器 -------------------------------------------------*/
 
@@ -129,9 +143,6 @@ BatReading battery; // 电池电量读取类的初始化
 #define BUTTON_FINETUNING 18 // 微调开关
 #define BUTTON_FLAP 19       // 襟翼开关
 
-// String finetuning_btn_status = "";
-// String flap_btn_status       = "";
-
 /*------------------------------------------------ 摇杆滤波 ------------------------------------------------*/
 
 #define STICK_THROTTLE 39    // 油门
@@ -147,7 +158,6 @@ BatReading battery; // 电池电量读取类的初始化
 #define ADC_OUT_MAX 255      // ADC最小值
 
 int ADC_MAX = pow(2, ADC_RESOLUTION); // ADC最大值
-// float diffrential_coe = 0.35, diffrential_adj_step = 0.01; // 转向系数和微调步长
 
 /*------------------------------------------------- 自定义函数 -------------------------------------------------*/
 
@@ -156,16 +166,18 @@ void OnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
   // 如果发送成功
   if (status == ESP_NOW_SEND_SUCCESS) {
     esp_connected  = true;
-    esp_now_signal = 0xe870;
+    esp_now_signal = ESP_NOW_CONNECTED;
   } else {
-    esp_now_signal = 0xe791;
+    esp_now_signal = ESP_NOW_DISCONNECTED;
     esp_connected  = false;
   }
 }
 
 // 收到消息后的回调
 void OnDataRecv(const uint8_t* mac, const uint8_t* incomingData, int len) {
+  Aircraft aircraft;
   memcpy(&aircraft, incomingData, sizeof(aircraft));
+  xQueueOverwrite(aircraftQueue, &aircraft);
 }
 
 // ESP NOW 初始化及连接
@@ -244,6 +256,7 @@ void unlock() {
 
   while (paringMax == false) {
     int reading = getAnalogHat(throttle);
+    lock        = LOCK;
     u8g2.clearBuffer();
     u8g2.setFont(pad_35);
     u8g2.drawGlyph(44, 38, lock);
@@ -281,7 +294,7 @@ void unlock() {
   }
   while (paringMax == true && RC_confirm == true && paringMin == false) {
     int reading = getAnalogHat(throttle);
-    lock        = 0xe785;
+    lock        = UNLOCK;
     u8g2.clearBuffer();
     u8g2.setFont(pad_35);
     u8g2.drawGlyph(44, 38, lock);
@@ -309,13 +322,16 @@ void unlock() {
 // 电压读取与转换
 void BatteryReading(void* pt) {
   while (1) {
+    Aircraft aircraft;
     // 手柄电量
     BatReading::Bat batStatus = battery.read(AVERAGE_FILTER);
     padBatteryVoltage         = batStatus.voltage;
     padPercentage             = batStatus.voltsPercentage;
     // 接收机电量
-    airCraftBatteryVoltage = aircraft.batteryValue[0];
-    airCraftPercentage     = aircraft.batteryValue[1];
+    if (xQueueReceive(aircraftQueue, &aircraft, 0) == pdPASS) {
+      airCraftBatteryVoltage = aircraft.batteryValue[0];
+      airCraftPercentage     = aircraft.batteryValue[1];
+    }
     // 低电量报警
     if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
       buzzer(1);
@@ -323,35 +339,6 @@ void BatteryReading(void* pt) {
     vTaskDelay(PAD_BATTERY_READING_INTERVAL);
   }
 }
-
-// // 钮子开关及摇杆调参
-// void handleSWfunction() {
-//   // 只有当发送开关打开的时候，其余两个开关才能有效打开。
-//   // 微调开关
-//   if (digitalRead(BUTTON_THROTTLE) == 1 && (digitalRead(BUTTON_FINETUNING) == 1)) {
-//     finetuning_btn_status = "开";
-//     oled_display_flag     = true;
-//     num                   = 6;
-//     page                  = num % 4;
-//   } else {
-//     finetuning_btn_status = "关";
-//   }
-//   // 襟翼开关
-//   if (digitalRead(BUTTON_THROTTLE) == 1 && (digitalRead(BUTTON_FLAP) == 1)) {
-//     flap_btn_status   = "开";
-//     oled_display_flag = true;
-//     num               = 5;
-//     page              = num % 4;
-//   } else {
-//     flap_btn_status = "关";
-//   }
-//   // 发送开关
-//   if (digitalRead(BUTTON_THROTTLE) == 1) {
-//     send_icon = 0xE898;
-//   } else {
-//     send_icon = 0xf140;
-//   }
-// }
 
 // 短按功能
 void btnShortPressed() {
@@ -371,13 +358,6 @@ void btnShortPressed() {
       }
       page = num % 2;
       break;
-    //   // 转向系数微调
-    // case BUTTON_L_2:
-    //   diffrential_coe -= diffrential_adj_step;
-    //   break;
-    // case BUTTON_R_2:
-    //   diffrential_coe += diffrential_adj_step;
-    //   break;
     default:
       break;
     }
@@ -398,9 +378,9 @@ void btnLongPressed() {
     buzzer(0);
     buzzer_flag = !buzzer_flag;
     if (buzzer_flag == true) {
-      speaker = 59239;
+      speaker = SPEAKER_ON;
     } else {
-      speaker = 59215;
+      speaker = SPEAKER_OFF;
     }
     buzzer(0);
     longPressTriggered = true;
@@ -456,7 +436,7 @@ void transmitData(void* pt) {
       int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
       float diffrential_coe;
   */
-
+  Pad              pad; // 声明结构体局部变量
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
   while (1) {
@@ -468,9 +448,8 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[1] = getAnalogHat(diffrential);
       pad.joystick_cur_val[2] = getAnalogHat(aileron);
       pad.joystick_cur_val[3] = getAnalogHat(elevator);
-      // pad.diffrential_coe     = diffrential_coe;
-
-      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+      pad.diffrential_coe     = 0;
+      send_icon               = SEND_SUCCESSED;
     } else {
       // 关闭发送按钮或关机断联
       pad.button_status[0]    = 0;
@@ -480,97 +459,58 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[1] = 0;
       pad.joystick_cur_val[2] = 0;
       pad.joystick_cur_val[3] = 0;
-      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+      pad.diffrential_coe     = 0;
+      send_icon               = SEND_FAILED;
     }
+    xQueueOverwrite(padQueue, &pad);
+    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 
 // OLED显示
 void oledDisplay() {
+  Pad pad;
   if (oled_display_flag == true) {
-    int throttle = pad.joystick_cur_val[0];
-    // int diffrential = pad.joystick_cur_val[1];
-    int aileron  = pad.joystick_cur_val[2];
-    int elevator = pad.joystick_cur_val[3];
-    // int diffrential_r, diffrential_l, aileron_l, aileron_r;
-
-    // diffrential_l = (diffrential >= 0) ? diffrential : 0;
-    // diffrential_r = (diffrential <= 0) ? abs(diffrential) : 0;
-    // aileron_l     = (aileron >= 0) ? aileron : 0;
-    // aileron_r     = (aileron <= 0) ? abs(aileron) : 0;
     switch (page) {
     case 0:
-      // 设备状态
-      u8g2.clearBuffer();
-      u8g2.setFont(aircraft_14);
-      u8g2.drawGlyph(59, 14, speaker); // 扬声器图标
-      u8g2.drawGlyph(2, 63, 0xe7fc);   // 手柄图标
-      u8g2.drawGlyph(86, 62, 0xe709);  // 飞机图标
-      // 手柄电量
-      u8g2.setCursor(24, 61);
-      u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%.0f%%", padPercentage);
-      // 信号
-      u8g2.setFont(aircraft_pad_icon_14);
-      u8g2.drawGlyph(2, 12, esp_now_signal); // 信号图标
-      u8g2.drawGlyph(110, 13, send_icon);    // 发送开关图标
+      if (xQueueReceive(padQueue, &pad, 0) == pdPASS) {
+        int throttle = pad.joystick_cur_val[0];
+        int aileron  = pad.joystick_cur_val[2];
+        int elevator = pad.joystick_cur_val[3];
+        // 设备状态
+        u8g2.clearBuffer();
+        u8g2.setFont(aircraft_14);
+        u8g2.drawGlyph(59, 14, speaker);       // 扬声器图标
+        u8g2.drawGlyph(2, 63, ICON_HANDHELD);  // 手柄图标
+        u8g2.drawGlyph(86, 62, ICON_AIRCRAFT); // 飞机图标
+        // 手柄电量
+        u8g2.setCursor(24, 61);
+        u8g2.setFont(u8g2_font_7x14B_tf);
+        u8g2.printf("%.0f%%", padPercentage);
+        // 信号
+        u8g2.setFont(aircraft_pad_icon_14);
+        u8g2.drawGlyph(2, 12, esp_now_signal); // 信号图标
+        u8g2.drawGlyph(110, 13, send_icon);    // 发送开关图标
+        // 副翼
+        u8g2.setCursor(6, 38);
+        u8g2.setFont(u8g2_font_7x14B_tf);
+        u8g2.printf("%02d°", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE));
+        // 升降舵
+        u8g2.setCursor(102, 38);
+        u8g2.setFont(u8g2_font_7x14B_tf);
+        u8g2.printf("%02d°", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20)));
+        // 油门
+        u8g2.setFont(u8g2_font_logisoso22_tr);
+        u8g2.setCursor(42, 42);
+        u8g2.printf("%03d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255));
+      }
       // 飞机电量
       u8g2.setCursor(106, 61);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%.0f%%", airCraftPercentage);
-      // 副翼
-      u8g2.setCursor(6, 38);
-      u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE));
-      // 升降舵
-      u8g2.setCursor(102, 38);
-      u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20)));
-      // 油门
-      u8g2.setFont(u8g2_font_logisoso22_tr);
-      u8g2.setCursor(42, 42);
-      u8g2.printf("%03d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255));
+      u8g2.printf("%.0f%%", airCraftBatteryVoltage);
       u8g2.sendBuffer();
       break;
-    // case 1:
-    //   u8g2.clearBuffer();
-    //   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-    //   u8g2.drawUTF8(5, 10, "舵机");
-    //   u8g2.setCursor(75, 10);
-    //   u8g2.printf("襟翼 : %s", flap_btn_status); // 微调开关
-    //   u8g2.setCursor(5, 30);
-    //   u8g2.printf("副翼 ADC : %03d", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, ADC_MAX)); // ADC值
-    //   u8g2.setCursor(5, 45);
-    //   u8g2.printf("左 : %02d°", aileron = map(aileron, ADC_MIN, ADC_MAX, ADC_MIN, SERVO_MAX_ANGLE)); // 左副翼实时角度
-    //   u8g2.setCursor(70, 45);
-    //   u8g2.printf("右 : %02d°", SERVO_MAX_ANGLE - aileron); // 右副翼实时角度
-    //   u8g2.setCursor(5, 60);
-    //   u8g2.printf("升降 ADC : %03d", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, ADC_MAX)); // ADC值
-    //   u8g2.setCursor(100, 60);
-    //   u8g2.printf("%02d°", elevator = map(elevator, ADC_MIN, ADC_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20))); // 升降舵实时角度
-    //   u8g2.sendBuffer();
-    //   break;
-    // case 2:
-    //   u8g2.clearBuffer();
-    //   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-    //   u8g2.drawUTF8(5, 10, "差速");
-    //   u8g2.setCursor(75, 10);
-    //   u8g2.printf("微调 : %s", finetuning_btn_status); // 微调开关
-    //   u8g2.setCursor(5, 30);
-    //   u8g2.printf("油门: %d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255)); // 8位ADC值
-    //   u8g2.setCursor(70, 30);
-    //   u8g2.printf("系数: %.2f", diffrential_coe); // 转向系数
-    //   u8g2.setCursor(5, 45);
-    //   u8g2.printf("左 : %d", diffrential_r); // 左电机实时油门8位ADC值
-    //   u8g2.setCursor(70, 45);
-    //   u8g2.printf("值 : %.0f", diffrential_r * diffrential_coe); // 左电机转向加速
-    //   u8g2.setCursor(5, 60);
-    //   u8g2.printf("右 : %d", diffrential_l); // 右电机实时油门8位ADC值
-    //   u8g2.setCursor(70, 60);
-    //   u8g2.printf("值 : %.0f", diffrential_l * diffrential_coe); // 右电机转向加速
-    //   u8g2.sendBuffer();
-    //   break;
     case 1:
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
@@ -590,6 +530,22 @@ void oledDisplay() {
   }
 }
 
+// 错误处理
+void error() {
+  if (padQueue == NULL || aircraftQueue == NULL || esp_now_init() != ESP_OK) {
+    while (1) {
+      u8g2.clearBuffer();
+      u8g2.setFont(pad_35);
+      u8g2.drawGlyph(44, 38, 0xf140);
+      u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
+      u8g2.drawUTF8(18, 56, "初始化失败");
+      u8g2.sendBuffer();
+      delay(3000);
+      ESP.restart();
+    }
+  }
+}
+
 /*-------------------------------------------------------------------------------------------------------------*/
 
 void setup() {
@@ -599,6 +555,13 @@ void setup() {
   // oled初始化
   u8g2.begin();
   u8g2.enableUTF8Print(); // 显示中文使能
+
+  // 创建freertos任务
+  xTaskCreatePinnedToCore(transmitData, "sendData", 1024 * 2, NULL, 6, NULL, 1);
+  xTaskCreatePinnedToCore(BatteryReading, "BatteryReading", 1024, NULL, 2, NULL, 1);
+  // 创建队列
+  padQueue      = xQueueCreate(1, sizeof(Pad)); // 队列长度1，覆盖模式
+  aircraftQueue = xQueueCreate(1, sizeof(Aircraft));
 
   // 引脚初始化
   pinMode(BUTTON_THROTTLE, INPUT_PULLDOWN);   // 油门开关
@@ -622,13 +585,10 @@ void setup() {
   // 电量读取初始化
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
 
-  // 创建freertos任务
-  xTaskCreatePinnedToCore(transmitData, "sendData", 1024 * 4, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(BatteryReading, "BatteryReading", 1024 * 2, NULL, 1, NULL, 1);
+  error();
 }
 
 void loop() {
   button_identify();
   oledDisplay();
-  // handleSWfunction();
 }
