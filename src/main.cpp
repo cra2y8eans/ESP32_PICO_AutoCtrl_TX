@@ -145,13 +145,13 @@ BatReading battery; // 电池电量读取类的初始化
 
 // 摇杆引脚在my_analog_hat.cpp中进行定义
 
-#define LIMIT_FILTER 10      // 限幅滤波阈值，建议取值范围3~10，值越小，操控越需要柔和
-#define AVERAGE_FILTER 50    // 均值滤波，N次取样平均，建议取值范围20~80
-#define SERVO_MAX_ANGLE 120  // 舵机最大角度
-#define ADC_RESOLUTION 12    // ADC精度
-#define ADC_MIN 0            // ADC最小值
-#define ADC_OUT_MIN -255     // ADC最小值
-#define ADC_OUT_MAX 255      // ADC最小值
+// #define LIMIT_FILTER 10     // 限幅滤波阈值，建议取值范围3~10，值越小，操控越需要柔和
+#define AVERAGE_FILTER 50   // 均值滤波，N次取样平均，建议取值范围20~80
+#define SERVO_MAX_ANGLE 120 // 舵机最大角度
+#define ADC_RESOLUTION 12   // ADC精度
+#define ADC_MIN 0           // ADC最小值
+#define ADC_OUT_MIN -255    // ADC最小值
+#define ADC_OUT_MAX 255     // ADC最小值
 
 int ADC_MAX = pow(2, ADC_RESOLUTION); // ADC最大值
 
@@ -213,37 +213,6 @@ void buzzer(int mode) {
       break;
     }
   }
-}
-
-// 限幅滤波，防止尖端突变
-int limit_filter(int pin) {
-  static int last_val = analogRead(pin); // 静态变量，只初始化一次，全程序中保存在内存
-  int        val      = analogRead(pin);
-  if (abs(val - last_val) > LIMIT_FILTER) {
-    val = last_val;
-  }
-  last_val = analogRead(pin);
-  return val;
-}
-
-// 均值滤波，抑制噪声
-int avg_filter(int pin) {
-  int val, sum = 0;
-  for (int count = 0; count < AVERAGE_FILTER; count++) {
-    sum += analogRead(pin);
-  }
-  val = sum / AVERAGE_FILTER;
-  return val;
-}
-
-// 限幅滤波+均值滤波
-int limit_avg_filter(int pin) {
-  int val, sum = 0;
-  for (int count = 0; count < AVERAGE_FILTER; count++) {
-    sum += limit_filter(pin);
-  }
-  val = sum / AVERAGE_FILTER;
-  return val;
 }
 
 // 遥控解锁
@@ -332,7 +301,10 @@ void BatteryReading(void* pt) {
     }
     // 低电量报警
     if (esp_connected && (airCraftPercentage <= BATTERY_MIN_PERCENTAGE || padPercentage <= BATTERY_MIN_PERCENTAGE)) {
-      buzzer(1);
+        for (int i = 0; i < 3; i++) {
+          buzzer(1);
+          vTaskDelay(200);
+        }
     }
     vTaskDelay(PAD_BATTERY_READING_INTERVAL);
   }

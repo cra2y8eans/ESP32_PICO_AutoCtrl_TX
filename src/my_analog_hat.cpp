@@ -39,6 +39,7 @@ void setupAnalogHat() {
     if (pins[i] != -1) {
       pinMode(pins[i], INPUT_PULLDOWN);
       analogSetPinAttenuation(pins[i], ADC_11db);
+      // Serial.println(pins[i]);
     }
 
   // 创建任务
