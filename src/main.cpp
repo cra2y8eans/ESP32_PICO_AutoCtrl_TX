@@ -1,7 +1,7 @@
 
 /******************************************************************************************************
 
-ESP32_PICO 手抛飞机自稳遥控器
+ESP32_PICO 手抛飞机自稳遥控器  分支：freertosWithoutQueue
 
           把遥控器发送的数据统一起来，实现一个遥控器连接操控多个设备的功能。
           通过none的低通滤波校正摇杆虚位和死区问题。
@@ -9,7 +9,6 @@ ESP32_PICO 手抛飞机自稳遥控器
           电池电量读取和报警每3秒执行一次。
           取消舵机、差速页面显示，取消钮子开关判断，节约系统资源。
           将电量读取、数据发送的任务分配到核心1，避免干扰wifi的使用。
-          给pad结构体数据添加互斥锁，确保在任意时刻只有一个任务能够访问和写入数据。
 
 *******************************************************************************************************/
 
@@ -468,9 +467,7 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[1] = getAnalogHat(diffrential);
       pad.joystick_cur_val[2] = getAnalogHat(aileron);
       pad.joystick_cur_val[3] = getAnalogHat(elevator);
-      // pad.diffrential_coe     = diffrential_coe;
-
-      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+      pad.diffrential_coe     = 0.0;
     } else {
       // 关闭发送按钮或关机断联
       pad.button_status[0]    = 0;
@@ -480,8 +477,9 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[1] = 0;
       pad.joystick_cur_val[2] = 0;
       pad.joystick_cur_val[3] = 0;
-      esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
+      pad.diffrential_coe     = 0.0;
     }
+    esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
