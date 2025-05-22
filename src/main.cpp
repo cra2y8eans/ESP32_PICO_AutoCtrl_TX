@@ -128,25 +128,20 @@ BatReading battery; // 电池电量读取类的初始化
 #define BUTTON_FINETUNING 18 // 微调开关
 #define BUTTON_FLAP 19       // 襟翼开关
 
-// String finetuning_btn_status = "";
-// String flap_btn_status       = "";
-
 /*------------------------------------------------ 摇杆滤波 ------------------------------------------------*/
 
 #define STICK_THROTTLE 39    // 油门
 #define STICK_DIFFRENTIAL 34 // 差速
 #define STICK_ELEVATOR 35    // 升降舵
 #define STICK_AILERON 32     // 副翼
-#define LIMIT_FILTER 10      // 限幅滤波阈值，建议取值范围3~10，值越小，操控越需要柔和
-#define AVERAGE_FILTER 50    // 均值滤波，N次取样平均，建议取值范围20~80
 #define SERVO_MAX_ANGLE 120  // 舵机最大角度
 #define ADC_RESOLUTION 12    // ADC精度
 #define ADC_MIN 0            // ADC最小值
 #define ADC_OUT_MIN -255     // ADC最小值
 #define ADC_OUT_MAX 255      // ADC最小值
+#define AVERAGE_FILTER 50     // 滤波平均次数
 
 int ADC_MAX = pow(2, ADC_RESOLUTION); // ADC最大值
-// float diffrential_coe = 0.35, diffrential_adj_step = 0.01; // 转向系数和微调步长
 
 /*------------------------------------------------- 自定义函数 -------------------------------------------------*/
 
@@ -202,37 +197,6 @@ void buzzer(int mode) {
       break;
     }
   }
-}
-
-// 限幅滤波，防止尖端突变
-int limit_filter(int pin) {
-  static int last_val = analogRead(pin); // 静态变量，只初始化一次，全程序中保存在内存
-  int        val      = analogRead(pin);
-  if (abs(val - last_val) > LIMIT_FILTER) {
-    val = last_val;
-  }
-  last_val = analogRead(pin);
-  return val;
-}
-
-// 均值滤波，抑制噪声
-int avg_filter(int pin) {
-  int val, sum = 0;
-  for (int count = 0; count < AVERAGE_FILTER; count++) {
-    sum += analogRead(pin);
-  }
-  val = sum / AVERAGE_FILTER;
-  return val;
-}
-
-// 限幅滤波+均值滤波
-int limit_avg_filter(int pin) {
-  int val, sum = 0;
-  for (int count = 0; count < AVERAGE_FILTER; count++) {
-    sum += limit_filter(pin);
-  }
-  val = sum / AVERAGE_FILTER;
-  return val;
 }
 
 // 遥控解锁
@@ -323,35 +287,6 @@ void BatteryReading(void* pt) {
   }
 }
 
-// // 钮子开关及摇杆调参
-// void handleSWfunction() {
-//   // 只有当发送开关打开的时候，其余两个开关才能有效打开。
-//   // 微调开关
-//   if (digitalRead(BUTTON_THROTTLE) == 1 && (digitalRead(BUTTON_FINETUNING) == 1)) {
-//     finetuning_btn_status = "开";
-//     oled_display_flag     = true;
-//     num                   = 6;
-//     page                  = num % 4;
-//   } else {
-//     finetuning_btn_status = "关";
-//   }
-//   // 襟翼开关
-//   if (digitalRead(BUTTON_THROTTLE) == 1 && (digitalRead(BUTTON_FLAP) == 1)) {
-//     flap_btn_status   = "开";
-//     oled_display_flag = true;
-//     num               = 5;
-//     page              = num % 4;
-//   } else {
-//     flap_btn_status = "关";
-//   }
-//   // 发送开关
-//   if (digitalRead(BUTTON_THROTTLE) == 1) {
-//     send_icon = 0xE898;
-//   } else {
-//     send_icon = 0xf140;
-//   }
-// }
-
 // 短按功能
 void btnShortPressed() {
   //  翻页
@@ -370,13 +305,6 @@ void btnShortPressed() {
       }
       page = num % 2;
       break;
-    //   // 转向系数微调
-    // case BUTTON_L_2:
-    //   diffrential_coe -= diffrential_adj_step;
-    //   break;
-    // case BUTTON_R_2:
-    //   diffrential_coe += diffrential_adj_step;
-    //   break;
     default:
       break;
     }
@@ -490,15 +418,9 @@ void transmitData(void* pt) {
 void oledDisplay() {
   if (oled_display_flag == true) {
     int throttle = pad.joystick_cur_val[0];
-    // int diffrential = pad.joystick_cur_val[1];
     int aileron  = pad.joystick_cur_val[2];
     int elevator = pad.joystick_cur_val[3];
-    // int diffrential_r, diffrential_l, aileron_l, aileron_r;
 
-    // diffrential_l = (diffrential >= 0) ? diffrential : 0;
-    // diffrential_r = (diffrential <= 0) ? abs(diffrential) : 0;
-    // aileron_l     = (aileron >= 0) ? aileron : 0;
-    // aileron_r     = (aileron <= 0) ? abs(aileron) : 0;
     switch (page) {
     case 0:
       // 设备状态
@@ -533,44 +455,6 @@ void oledDisplay() {
       u8g2.printf("%03d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255));
       u8g2.sendBuffer();
       break;
-    // case 1:
-    //   u8g2.clearBuffer();
-    //   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-    //   u8g2.drawUTF8(5, 10, "舵机");
-    //   u8g2.setCursor(75, 10);
-    //   u8g2.printf("襟翼 : %s", flap_btn_status); // 微调开关
-    //   u8g2.setCursor(5, 30);
-    //   u8g2.printf("副翼 ADC : %03d", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, ADC_MAX)); // ADC值
-    //   u8g2.setCursor(5, 45);
-    //   u8g2.printf("左 : %02d°", aileron = map(aileron, ADC_MIN, ADC_MAX, ADC_MIN, SERVO_MAX_ANGLE)); // 左副翼实时角度
-    //   u8g2.setCursor(70, 45);
-    //   u8g2.printf("右 : %02d°", SERVO_MAX_ANGLE - aileron); // 右副翼实时角度
-    //   u8g2.setCursor(5, 60);
-    //   u8g2.printf("升降 ADC : %03d", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, ADC_MAX)); // ADC值
-    //   u8g2.setCursor(100, 60);
-    //   u8g2.printf("%02d°", elevator = map(elevator, ADC_MIN, ADC_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20))); // 升降舵实时角度
-    //   u8g2.sendBuffer();
-    //   break;
-    // case 2:
-    //   u8g2.clearBuffer();
-    //   u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
-    //   u8g2.drawUTF8(5, 10, "差速");
-    //   u8g2.setCursor(75, 10);
-    //   u8g2.printf("微调 : %s", finetuning_btn_status); // 微调开关
-    //   u8g2.setCursor(5, 30);
-    //   u8g2.printf("油门: %d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255)); // 8位ADC值
-    //   u8g2.setCursor(70, 30);
-    //   u8g2.printf("系数: %.2f", diffrential_coe); // 转向系数
-    //   u8g2.setCursor(5, 45);
-    //   u8g2.printf("左 : %d", diffrential_r); // 左电机实时油门8位ADC值
-    //   u8g2.setCursor(70, 45);
-    //   u8g2.printf("值 : %.0f", diffrential_r * diffrential_coe); // 左电机转向加速
-    //   u8g2.setCursor(5, 60);
-    //   u8g2.printf("右 : %d", diffrential_l); // 右电机实时油门8位ADC值
-    //   u8g2.setCursor(70, 60);
-    //   u8g2.printf("值 : %.0f", diffrential_l * diffrential_coe); // 右电机转向加速
-    //   u8g2.sendBuffer();
-    //   break;
     case 1:
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
@@ -630,5 +514,4 @@ void setup() {
 void loop() {
   button_identify();
   oledDisplay();
-  // handleSWfunction();
 }
