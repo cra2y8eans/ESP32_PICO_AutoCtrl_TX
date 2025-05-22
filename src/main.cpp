@@ -55,6 +55,18 @@ bool esp_connected;
 #define SCL_PIN 22
 #define OLED_I2C_ADDR 0x3C // oled屏幕I2C地址
 
+#define SPEAKER_ON 59239
+#define SPEAKER_OFF 59215
+#define ESP_NOW_CONNECTED 0xe870
+#define ESP_NOW_DISCONNECTED 0xe791
+#define LOCK 0xe72e
+#define UNLOCK 0xe785
+#define SEND_ON 0xE898
+#define SEND_OFF 0xf140
+#define ICON_AIRCRAFT 0xe709
+#define ICON_HANDHELD 0xe7fc
+#define SEND_FAILED 0xe71b
+
 // 构造oled对象
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
     /*旋转角度*/ U8G2_R0,
@@ -68,10 +80,8 @@ uint8_t num      = 2; // 总页数
 uint8_t page     = 0; // 正在显示的页面
 uint8_t progress = 0;
 
-int speaker        = 59239;  // 扬声器图标
-int esp_now_signal = 0xe870; // 连接图标
-int send_icon      = 0xe71b; // 发送开关图标
-int lock           = 0xe72e;
+int speaker = SPEAKER_ON; // 扬声器图标
+int esp_now_signal, lock, send_icon;
 
 /*------------------------------------------------- 蜂鸣器 -------------------------------------------------*/
 
@@ -139,7 +149,7 @@ BatReading battery; // 电池电量读取类的初始化
 #define ADC_MIN 0            // ADC最小值
 #define ADC_OUT_MIN -255     // ADC最小值
 #define ADC_OUT_MAX 255      // ADC最小值
-#define AVERAGE_FILTER 50     // 滤波平均次数
+#define AVERAGE_FILTER 50    // 滤波平均次数
 
 int ADC_MAX = pow(2, ADC_RESOLUTION); // ADC最大值
 
@@ -150,9 +160,9 @@ void OnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
   // 如果发送成功
   if (status == ESP_NOW_SEND_SUCCESS) {
     esp_connected  = true;
-    esp_now_signal = 0xe870;
+    esp_now_signal = ESP_NOW_CONNECTED;
   } else {
-    esp_now_signal = 0xe791;
+    esp_now_signal = ESP_NOW_DISCONNECTED;
     esp_connected  = false;
   }
 }
@@ -207,6 +217,7 @@ void unlock() {
 
   while (paringMax == false) {
     int reading = getAnalogHat(throttle);
+    lock        = LOCK;
     u8g2.clearBuffer();
     u8g2.setFont(pad_35);
     u8g2.drawGlyph(44, 38, lock);
@@ -244,7 +255,7 @@ void unlock() {
   }
   while (paringMax == true && RC_confirm == true && paringMin == false) {
     int reading = getAnalogHat(throttle);
-    lock        = 0xe785;
+    lock        = UNLOCK;
     u8g2.clearBuffer();
     u8g2.setFont(pad_35);
     u8g2.drawGlyph(44, 38, lock);
@@ -325,9 +336,9 @@ void btnLongPressed() {
     buzzer(0);
     buzzer_flag = !buzzer_flag;
     if (buzzer_flag == true) {
-      speaker = 59239;
+      speaker = SPEAKER_ON;
     } else {
-      speaker = 59215;
+      speaker = SPEAKER_OFF;
     }
     buzzer(0);
     longPressTriggered = true;
@@ -396,7 +407,7 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[2] = getAnalogHat(aileron);
       pad.joystick_cur_val[3] = getAnalogHat(elevator);
       pad.diffrential_coe     = 0.0;
-      send_icon               = 0xE898;
+      send_icon               = SEND_ON;
     } else {
       // 关闭发送按钮或关机断联
       pad.button_status[0]    = 0;
@@ -407,7 +418,7 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[2] = 0;
       pad.joystick_cur_val[3] = 0;
       pad.diffrential_coe     = 0.0;
-      send_icon               = 0xf140;
+      send_icon               = SEND_OFF;
     }
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
@@ -427,8 +438,8 @@ void oledDisplay() {
       u8g2.clearBuffer();
       u8g2.setFont(aircraft_14);
       u8g2.drawGlyph(59, 14, speaker); // 扬声器图标
-      u8g2.drawGlyph(2, 63, 0xe7fc);   // 手柄图标
-      u8g2.drawGlyph(86, 62, 0xe709);  // 飞机图标
+      u8g2.drawGlyph(2, 63, ICON_HANDHELD);   // 手柄图标
+      u8g2.drawGlyph(86, 62, ICON_AIRCRAFT);  // 飞机图标
       // 手柄电量
       u8g2.setCursor(24, 61);
       u8g2.setFont(u8g2_font_7x14B_tf);
