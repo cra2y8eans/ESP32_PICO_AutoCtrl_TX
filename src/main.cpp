@@ -468,6 +468,7 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[2] = getAnalogHat(aileron);
       pad.joystick_cur_val[3] = getAnalogHat(elevator);
       pad.diffrential_coe     = 0.0;
+      send_icon               = 0xE898;
     } else {
       // 关闭发送按钮或关机断联
       pad.button_status[0]    = 0;
@@ -478,6 +479,7 @@ void transmitData(void* pt) {
       pad.joystick_cur_val[2] = 0;
       pad.joystick_cur_val[3] = 0;
       pad.diffrential_coe     = 0.0;
+      send_icon               = 0xf140;
     }
     esp_now_send(airCraftAddress, (uint8_t*)&pad, sizeof(pad));
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
@@ -621,7 +623,7 @@ void setup() {
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
 
   // 创建freertos任务
-  xTaskCreatePinnedToCore(transmitData, "sendData", 1024 * 4, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(transmitData, "sendData", 1024 * 4, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(BatteryReading, "BatteryReading", 1024 * 2, NULL, 1, NULL, 1);
 }
 
