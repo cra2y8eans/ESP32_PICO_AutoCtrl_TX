@@ -2,8 +2,8 @@
 #define READ_ANALOG_HAT_H
 
 #define LOW_PASS_FILTER_ALPHA 0.1f
-#define DEADZONE_CENTER 350
-#define DEADZONE_END 100
+#define DEADZONE_CENTER 220
+#define DEADZONE_END 30
 
 /**
  * @param pin ADC引脚
