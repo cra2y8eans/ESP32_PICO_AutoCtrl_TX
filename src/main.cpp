@@ -10,7 +10,6 @@ ESP32_PICO 手抛飞机自稳遥控器  分支： multifunctional
 #include "battery/batteryReading.hpp"
 #include "filter/my_analog_hat.h"
 #include <Arduino.h>
-#include <Ticker.h>
 #include <U8g2lib.h>
 #include <WiFi.h>
 #include <Wire.h>
