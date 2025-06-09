@@ -50,7 +50,7 @@ void button_R_RepeatPress() {
 void button_init() {
   buttonEventQueueOLED = xQueueCreate(3, sizeof(btnState));
   ESP_ERROR_CHECK(buttonEventQueueOLED == NULL ? ESP_FAIL : ESP_OK);
-  xTaskCreate(button_task, "button_task", 1024, NULL, 1, NULL);
+  xTaskCreatePinnedToCore(button_task, "button_task", 1024, NULL, 1, NULL, 1);
 }
 
 void button_task(void* pvParameters) {
