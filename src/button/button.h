@@ -18,8 +18,8 @@ enum ButtonState {
   BUTTON_RELEASE // 按钮松开
 };
 
-QueueHandle_t buttonEventQueueOLED = xQueueCreate(3, sizeof(ButtonState));
-QueueHandle_t buttonEventQueueBUZZER= xQueueCreate(3, sizeof(bool));
+extern QueueHandle_t buttonEventQueueOLED;
+extern QueueHandle_t buttonEventQueueBUZZER;
 
 // 按钮初始化和任务函数
 void button_init();

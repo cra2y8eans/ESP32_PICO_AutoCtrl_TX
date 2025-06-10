@@ -17,16 +17,20 @@ void setup() {
 }
 void loop() {
   ButtonState button_state;
-  Serial.println("L Short Press");
-  
-  Serial.println("L Long Press");
+
   if (xQueueReceive(buttonEventQueueOLED, &button_state, 0) == pdPASS) {
+    switch (button_state) {
+    case BUTTON_L_SHORT_PRESS:
+      Serial.println("L Short Press");
+      break;
+    case BUTTON_L_LONG_PRESS:
+      Serial.println("L Long Press");
+      break;
+    default:
+      break;
+    }
   }
 }
-
-
-
-
 
 /*****************************************************************************************************************************************************/
 
