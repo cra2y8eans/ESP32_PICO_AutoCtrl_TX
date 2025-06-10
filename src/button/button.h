@@ -3,19 +3,23 @@
 #define BUTTON_CPP
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
 
 // 按钮状态枚举
 enum ButtonState {
-    BUTTON_L_SHORT_PRESS,  // 左按钮短按
-    BUTTON_L_LONG_PRESS,   // 左按钮长按
-    BUTTON_L_REPEAT_PRESS, // 左按钮重复按下
+  BUTTON_L_SHORT_PRESS,  // 左按钮短按
+  BUTTON_L_LONG_PRESS,   // 左按钮长按
+  BUTTON_L_REPEAT_PRESS, // 左按钮重复按下
 
-    BUTTON_R_SHORT_PRESS,  // 右按钮短按
-    BUTTON_R_LONG_PRESS,   // 右按钮长按
-    BUTTON_R_REPEAT_PRESS, // 右按钮重复按下
+  BUTTON_R_SHORT_PRESS,  // 右按钮短按
+  BUTTON_R_LONG_PRESS,   // 右按钮长按
+  BUTTON_R_REPEAT_PRESS, // 右按钮重复按下
 
-    BUTTON_RELEASE // 按钮松开
+  BUTTON_RELEASE // 按钮松开
 };
+
+QueueHandle_t buttonEventQueueOLED = xQueueCreate(3, sizeof(ButtonState));
+QueueHandle_t buttonEventQueueBUZZER= xQueueCreate(3, sizeof(bool));
 
 // 按钮初始化和任务函数
 void button_init();
