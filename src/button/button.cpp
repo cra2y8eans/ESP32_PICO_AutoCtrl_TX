@@ -1,14 +1,16 @@
 #include "button.h"
-#include "Arduino.h"
 #include "OneButton.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <Arduino.h>
+
+#define DEBUG
 
 #define BUTTON_L 13
 #define BUTTON_R 16
 #define BUTTON_CHECK_INTERVAL 10
 
-QueueHandle_t buttonEventQueueOLED = NULL;
+QueueHandle_t buttonEventQueueOLED   = NULL;
 QueueHandle_t buttonEventQueueBUZZER = NULL;
 
 OneButton buttonL(BUTTON_L, true); // 只支持内部上拉电阻
@@ -57,8 +59,12 @@ void button_R_RepeatPress() {
 void button_init() {
   buttonEventQueueOLED   = xQueueCreate(3, sizeof(ButtonState));
   buttonEventQueueBUZZER = xQueueCreate(3, sizeof(bool));
-  ESP_ERROR_CHECK(buttonEventQueueOLED == NULL ? ESP_FAIL : ESP_OK);
   xTaskCreatePinnedToCore(button_task, "button_task", 1024, NULL, 1, NULL, 1);
+#ifdef DEBUG
+  Serial.println(buttonEventQueueOLED == NULL ? "Failed to create OLED queue!" : "OLED queue created!");
+  Serial.println(buttonEventQueueBUZZER == NULL ? "Failed to create BUZZER queue!" : "BUZZER queue created!");
+  Serial.println(button_task == NULL ? "Failed to create button task!" : "Button task created!");
+#endif
 }
 
 void button_task(void* pvParameters) {
