@@ -12,7 +12,6 @@ ESP32_PICO 手抛飞机自稳遥控器  分支： multifunctional
 void setup() {
   Serial.begin(115200);
   button_init();
-  Serial.println(ESP_OK);
   // vTaskDelete(NULL);
 }
 void loop() {
