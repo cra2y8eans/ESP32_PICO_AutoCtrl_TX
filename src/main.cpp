@@ -8,15 +8,6 @@ ESP32_PICO 手抛飞机自稳遥控器  分支： multifunctional
 *******************************************************************************************************/
 #include "button/button.h"
 #include <Arduino.h>
-// #include "battery/batteryReading.hpp"
-// #include "filter/my_analog_hat.h"
-// #include <U8g2lib.h>
-// #include <WiFi.h>
-// #include <Wire.h>
-// #include <esp_now.h>
-// #include <esp_wifi.h>
-// #include <freertos/FreeRTOS.h>
-// #include <freertos/task.h>
 
 void setup() {
   Serial.begin(115200);
@@ -27,11 +18,27 @@ void setup() {
 void loop() {
   ButtonState button_state;
   Serial.println("L Short Press");
-
+  
   Serial.println("L Long Press");
   if (xQueueReceive(buttonEventQueueOLED, &button_state, 0) == pdPASS) {
   }
 }
+
+
+
+
+
+/*****************************************************************************************************************************************************/
+
+// #include "battery/batteryReading.hpp"
+// #include "filter/my_analog_hat.h"
+// #include <U8g2lib.h>
+// #include <WiFi.h>
+// #include <Wire.h>
+// #include <esp_now.h>
+// #include <esp_wifi.h>
+// #include <freertos/FreeRTOS.h>
+// #include <freertos/task.h>
 
 // /*------------------------------------------------- ESP NOW -------------------------------------------------*/
 
