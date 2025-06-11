@@ -4,7 +4,7 @@
 
 #include <Arduino.h>
 
-typedef enum buzzerStatuas{
+enum buzzerStatuas{
   BUZZER_SHORT,
   BUZZER_LONG,
   BUZZER_REPEAT

@@ -9,6 +9,7 @@
 #include "button/button.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "oled/oled.h"
 
 #define DEBUG
 #define BUZZER_PIN 25
@@ -16,13 +17,15 @@
 #define BUZZER_SHORT_INTERVAL 200
 #define BUZZER_LONG_INTERVAL 1000
 
-bool buzzerFlag;
-
 void buzzerTask(void* pvParameters) {
   buzzerStatuas buzzerMode;
   while (1) {
     xQueueReceive(buttonEventQueueBUZZER, &buzzerFlag, portMAX_DELAY);
+#ifdef DEBUG
+    Serial.println(buzzerFlag == true ? "buzzerFlag is true" : "buzzerFlag is false");
+#endif
     if (buzzerFlag == true) {
+      xQueueReceive(unlockEventQueueBUZZER, &buzzerMode, portMAX_DELAY);
       switch (buzzerMode) {
       case BUZZER_SHORT:
         digitalWrite(BUZZER_PIN, HIGH);
