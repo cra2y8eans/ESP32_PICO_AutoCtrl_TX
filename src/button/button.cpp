@@ -6,8 +6,10 @@
 
 #define DEBUG
 
-#define BUTTON_L 13
+#define BUTTON_L 0
 #define BUTTON_R 16
+#define CLICK_INTERVAL 10
+#define LONG_PRESS_INTERVAL 600
 #define BUTTON_CHECK_INTERVAL 10
 
 QueueHandle_t buttonEventQueueOLED   = NULL;
@@ -56,18 +58,11 @@ void button_R_RepeatPress() {
   xQueueSend(buttonEventQueueOLED, &btnState, portMAX_DELAY);
 }
 
-void button_init() {
-  buttonEventQueueOLED   = xQueueCreate(3, sizeof(ButtonState));
-  buttonEventQueueBUZZER = xQueueCreate(3, sizeof(bool));
-  xTaskCreatePinnedToCore(button_task, "button_task", 1024, NULL, 1, NULL, 1);
-#ifdef DEBUG
-  Serial.println(buttonEventQueueOLED == NULL ? "Failed to create OLED queue!" : "OLED queue created!");
-  Serial.println(buttonEventQueueBUZZER == NULL ? "Failed to create BUZZER queue!" : "BUZZER queue created!");
-  Serial.println(button_task == NULL ? "Failed to create button task!" : "Button task created!");
-#endif
-}
-
 void button_task(void* pvParameters) {
+  buttonL.setClickMs(CLICK_INTERVAL / portTICK_PERIOD_MS);
+  buttonR.setClickMs(CLICK_INTERVAL / portTICK_PERIOD_MS);
+  buttonL.setPressMs(LONG_PRESS_INTERVAL / portTICK_PERIOD_MS);
+  buttonR.setPressMs(LONG_PRESS_INTERVAL / portTICK_PERIOD_MS);
 
   buttonL.attachClick(button_L_ShortPress);
   buttonL.attachLongPressStart(button_L_LongPress);
@@ -82,4 +77,15 @@ void button_task(void* pvParameters) {
     buttonR.tick();
     vTaskDelay(BUTTON_CHECK_INTERVAL / portTICK_PERIOD_MS);
   }
+}
+
+void button_init() {
+  buttonEventQueueOLED   = xQueueCreate(3, sizeof(ButtonState));
+  buttonEventQueueBUZZER = xQueueCreate(3, sizeof(bool));
+  xTaskCreatePinnedToCore(button_task, "button_task", 1024, NULL, 1, NULL, 1);
+#ifdef DEBUG
+  Serial.println(buttonEventQueueOLED == NULL ? "Failed to create OLED queue!" : "OLED queue created!");
+  Serial.println(buttonEventQueueBUZZER == NULL ? "Failed to create BUZZER queue!" : "BUZZER queue created!");
+  Serial.println(button_task == NULL ? "Failed to create button task!" : "Button task created!");
+#endif
 }

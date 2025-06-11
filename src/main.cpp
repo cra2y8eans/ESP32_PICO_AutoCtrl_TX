@@ -16,8 +16,7 @@ void setup() {
 }
 void loop() {
   ButtonState button_state;
-
-  if (xQueueReceive(buttonEventQueueOLED, &button_state, 0) == pdPASS) {
+  if (xQueueReceive(buttonEventQueueOLED, &button_state, portMAX_DELAY) == pdPASS) {
     switch (button_state) {
     case BUTTON_L_SHORT_PRESS:
       Serial.println("L Short Press");
