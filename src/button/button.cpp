@@ -1,10 +1,15 @@
+/**
+ * @file button.cpp
+ * @brief 使用onebutton库对按钮事件进行判断，并将事件通过队列发送到oled显示和蜂鸣器任务作为判断依据
+ */
+
 #include "button.h"
 #include "OneButton.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <Arduino.h>
 
-#define DEBUG
+// #define DEBUG
 
 #define BUTTON_L 0
 #define BUTTON_R 16

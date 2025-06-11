@@ -8,10 +8,15 @@ ESP32_PICO 手抛飞机自稳遥控器  分支： multifunctional
 *******************************************************************************************************/
 #include "button/button.h"
 #include <Arduino.h>
+#include "buzzer/buzzer.h"
+
+#define ADC_RESOLUTION 12
 
 void setup() {
   Serial.begin(115200);
+  analogReadResolution(ADC_RESOLUTION);
   button_init();
+  buzzer_init();
   // vTaskDelete(NULL);
 }
 void loop() {
