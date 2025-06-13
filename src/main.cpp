@@ -18,11 +18,11 @@
 void setup() {
   Serial.begin(115200);
   analogReadResolution(ADC_RESOLUTION);
-  button_init();
-  buzzer_init();
   oled_init();
   sendData_init();
-  // vTaskDelete(NULL);
+  buzzer_init();
+  button_init();
+  vTaskDelete(NULL);
 }
 void loop() {
 }

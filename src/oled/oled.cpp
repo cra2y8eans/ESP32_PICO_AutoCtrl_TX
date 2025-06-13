@@ -66,7 +66,6 @@ void unlock() {
   bool          paringMin  = false;
   bool          RC_confirm = false;
   buzzerStatuas buzzerMode;
-
   while (paringMax == false) {
     int reading = getAnalogHat(throttle);
     lock        = LOCK;
@@ -132,6 +131,9 @@ void unlock() {
       u8g2.sendBuffer();
     }
   }
+#ifdef DEBUG
+  Serial.println("RC has been selected!");
+#endif
 }
 
 uint8_t get_MAC_address() {
@@ -144,14 +146,13 @@ uint8_t get_MAC_address() {
 void oledButtonEvent() {
   ButtonState button_state;
   xQueueReceive(ButtonEventQueue, &button_state, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-  oled_display_flag = button_state == BUTTON_R_LONG_PRESS ? !oled_display_flag : oled_display_flag;
   if (oled_display_flag == true) {
     switch (button_state) {
-    case BUTTON_L_SHORT_PRESS:
+    case BUTTON_L_1_SHORT_PRESS:
       num  = num + 1;
       page = num % 2;
       break;
-    case BUTTON_R_SHORT_PRESS:
+    case BUTTON_R_1_SHORT_PRESS:
       if (page > 0) {
         num = num - 1;
       } else {
@@ -165,12 +166,8 @@ void oledButtonEvent() {
   }
 }
 
-void displayContent(){
-    xQueueReceive(PadDataQueue, &data, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-
-}
-
 void oleddisplay() {
+  xQueueReceive(PadDataQueue, &data, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
   if (oled_display_flag == true) {
     int throttle = map(data.joystick_cur_val[0], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255);
     int aileron  = map(data.joystick_cur_val[2], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE);
@@ -232,7 +229,6 @@ void oled_task(void* pvParameters) {
   unlock();
   while (1) {
     oledButtonEvent();
-    displayContent();
     oleddisplay();
   }
 }

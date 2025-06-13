@@ -12,7 +12,7 @@
 #include "oled/oled.h"
 
 #define DEBUG
-#define BUZZER_PIN 25
+#define BUZZER_PIN 23
 #define BUZZER_REPEAT_INTERVAL 60
 #define BUZZER_SHORT_INTERVAL 200
 #define BUZZER_LONG_INTERVAL 1000
@@ -40,12 +40,15 @@ void buzzerTask(void* pvParameters) {
         digitalWrite(BUZZER_PIN, HIGH);
         vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
         digitalWrite(BUZZER_PIN, LOW);
+        vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
         digitalWrite(BUZZER_PIN, HIGH);
         vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
         digitalWrite(BUZZER_PIN, LOW);
+        vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
         digitalWrite(BUZZER_PIN, HIGH);
         vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
         digitalWrite(BUZZER_PIN, LOW);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         break;
       default:
         break;

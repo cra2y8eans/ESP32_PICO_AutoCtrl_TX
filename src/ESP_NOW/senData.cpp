@@ -7,11 +7,14 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 
+#define DEBUG
+
 #define ESP_NOW_CONNECTED 0xe870
 #define ESP_NOW_DISCONNECTED 0xe791
 #define SEND_ON 0xE898
 #define SEND_OFF 0xf140
 
+#define ADC_RESOLUTION 12                 // ADC精度
 #define BATTERY_PIN 36                    // 电池电量读取引脚
 #define BATTERY_MAX_VALUE 4.2             // 电池最大电量
 #define BATTERY_MIN_VALUE 3.2             // 电池最小电量
@@ -22,13 +25,15 @@
 #define AVERAGE_FILTER 50         // 滤波平均次数
 #define BATTERY_MIN_PERCENTAGE 20 // 低电量报警阈值
 
-#define SWITCH_SEND_UP 25       // 发送数据开
-#define SWITCH_AUTO 17          // 自稳开关
-#define SWITCH_FLAP 19          // 襟翼开关
+#define SWITCH_SEND 25 // 发送数据开
+#define SWITCH_AUTO 18 // 自稳开关
+#define SWITCH_FLAP 19 // 襟翼开关
 
-#define JOYSTICK_ADC_OUT_MAX 255  // 遥控器摇杆输出ADC最大值
-#define JOYSTICK_ADC_OUT_MIN -255 // 遥控器摇杆输出ADC最小值
-#define ADC_MIN 0                 // ADC最小值
+#define JOYSTICK_ADC_OUT_MAX 255          // 遥控器摇杆输出ADC最大值
+#define JOYSTICK_ADC_OUT_MIN -255         // 遥控器摇杆输出ADC最小值
+#define ADC_MIN 0                         // ADC最小值
+#define SERVO_ANGLE_RANGE 120             // 舵机角度范围
+#define ADC_MAX = pow(2, ADC_RESOLUTION); // ADC最大值
 
 #define QUEUE_MESSAGE_WAIT 20
 
@@ -44,15 +49,15 @@ uint8_t RC_brushless_1_0_2[]  = { 0x48, 0xca, 0x43, 0xed, 0xc4, 0x58 }; // 无�
 uint8_t RC_coreless_c3mini[]  = { 0x9c, 0x9e, 0x6e, 0x84, 0xf2, 0x1c }; // 有刷c3mini（差速）
 uint8_t airCraftAddress[6]    = {};
 
-typedef enum {
-  REMOTE_OFF,
-  DEVICE_TEST_ON,
-  SEND_DATA_ON
-} SwitchState;
+// typedef enum {
+//   REMOTE_OFF,
+//   DEVICE_TEST_ON,
+//   SEND_DATA_ON
+// } SwitchState;
 
-SwitchState switchstate;
+// SwitchState switchstate;
 
-Pad        pad;
+Pad        oled;
 Aircraft   aircraft;
 SendData   send_data;
 BatReading battery;
@@ -66,17 +71,11 @@ bool esp_connected;
 void batteryReading() {
   // 手柄电量
   BatReading::Bat batStatus = battery.read(AVERAGE_FILTER);
-  pad.padBatteryVoltage     = batStatus.voltage;
-  pad.padPercentage         = batStatus.voltsPercentage;
+  oled.padBatteryVoltage    = batStatus.voltage;
+  oled.padPercentage        = batStatus.voltsPercentage;
   // 接收机电量
-  pad.airCraftBatteryVoltage = aircraft.batteryValue[0];
-  pad.airCraftPercentage     = aircraft.batteryValue[1];
-  // 低电量报警
-  if (esp_connected && (pad.airCraftPercentage <= BATTERY_MIN_PERCENTAGE || pad.padPercentage <= BATTERY_MIN_PERCENTAGE)) {
-    buzzerStatuas buzzer;
-    buzzer = BUZZER_REPEAT;
-    xQueueSend(BuzzerEventQueue, &buzzer, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-  }
+  oled.airCraftBatteryVoltage = aircraft.batteryValue[0];
+  oled.airCraftPercentage     = aircraft.batteryValue[1];
 }
 
 /**
@@ -85,11 +84,11 @@ void batteryReading() {
  */
 void OnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
   if (status == ESP_NOW_SEND_SUCCESS) {
-    esp_connected      = true;
-    pad.esp_now_signal = ESP_NOW_CONNECTED;
+    esp_connected       = true;
+    oled.esp_now_signal = ESP_NOW_CONNECTED;
   } else {
-    pad.esp_now_signal = ESP_NOW_DISCONNECTED;
-    esp_connected      = false;
+    oled.esp_now_signal = ESP_NOW_DISCONNECTED;
+    esp_connected       = false;
   }
 }
 
@@ -112,6 +111,17 @@ void ESP_NOW_Init() {
   esp_now_init();                       // 初始化ESP NOW
   esp_now_register_send_cb(OnDataSent); // 注册发送成功的回调函数
   esp_now_register_recv_cb(OnDataRecv); // 注册接受数据后的回调函数
+#ifdef DEBUG
+  Serial.println("Has RC'MAC been taken?");
+#endif
+  if (RC_num == 0) {
+    RC_num = get_MAC_address();
+    Serial.println("Oops! Let's try to get it again.");
+  } else {
+#ifdef DEBUG
+    Serial.println("MAC adrress has been taken!");
+#endif
+  }
   switch (RC_num) {
   case 1:
     memcpy(airCraftAddress, RC_brushless_1_0_1, sizeof(RC_brushless_1_0_1));
@@ -128,114 +138,49 @@ void ESP_NOW_Init() {
 }
 
 /**
- * @brief 读取数据任务
- *
-  int   button_status[5]    = {}; // 0、方向开关    1、副翼开关     2、升降舵开关   3、差速（自稳）开关      4、襟翼开关
-  int   joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
-  int   joystick_adj_val[3] = {}; // 0、差速        1、副翼         2、升降舵
-  int   send_icon, esp_now_signal;
-  float diffrential_coe,
-      airCraftPercentage,
-      airCraftBatteryVoltage,
-      padPercentage,
-      padBatteryVoltage;
- */
-void switchStateIdentify() {
-  if (digitalRead(SWITCH_SEND_UP) == 0 && digitalRead(SWITCH_SEND_DOWN) == 1) {
-    switchstate = SEND_DATA_ON;
-  } else if (digitalRead(SWITCH_SEND_UP) == 0 && digitalRead(SWITCH_SEND_DOWN) == 0) {
-    switchstate = DEVICE_TEST_ON;
-  } else if (digitalRead(SWITCH_SEND_UP) == 1 && digitalRead(SWITCH_SEND_DOWN) == 0) {
-    switchstate = REMOTE_OFF;
-  }
-
-  if (digitalRead(SWITCH_YAW_UP) == 1 && digitalRead(SWITCH_YAW_DOWN) == 0) {
-    send_data.switch_status[0] = 2;
-  } else if (digitalRead(SWITCH_YAW_UP) == 0 && digitalRead(SWITCH_YAW_DOWN) == 0) {
-    send_data.switch_status[0] = 1;
-  } else if (digitalRead(SWITCH_YAW_UP) == 0 && digitalRead(SWITCH_YAW_DOWN) == 1) {
-    send_data.switch_status[0] = 0;
-  }
-
-  if (digitalRead(SWITCH_AILERON_UP) == 1 && digitalRead(SWITCH_AILERON_DOWN) == 0) {
-    send_data.switch_status[1] = 2;
-  } else if (digitalRead(SWITCH_AILERON_UP) == 0 && digitalRead(SWITCH_AILERON_DOWN) == 0) {
-    send_data.switch_status[1] = 1;
-  } else if (digitalRead(SWITCH_AILERON_UP) == 0 && digitalRead(SWITCH_AILERON_DOWN) == 1) {
-    send_data.switch_status[1] = 0;
-  }
-
-  if (digitalRead(SWITCH_ELEVATOR_UP) == 1 && digitalRead(SWITCH_ELEVATOR_DOWN) == 0) {
-    send_data.switch_status[2] = 2;
-  } else if (digitalRead(SWITCH_ELEVATOR_UP) == 0 && digitalRead(SWITCH_ELEVATOR_DOWN) == 0) {
-    send_data.switch_status[2] = 1;
-  } else if (digitalRead(SWITCH_ELEVATOR_UP) == 0 && digitalRead(SWITCH_ELEVATOR_DOWN) == 1) {
-    send_data.switch_status[2] = 0;
-  }
-
-  if (digitalRead(SWITCH_FLAP) == 0) {
-    send_data.switch_status[3] = 1;
-  }
-  if (digitalRead(SWITCH_AUTO) == 0) {
-    send_data.switch_status[4] = 0;
-  }
-}
-
-void dataProcess() {
-  int angle1 = map(getAnalogHat(diffrential), JOYSTICK_ADC_OUT_MIN, JOYSTICK_ADC_OUT_MAX, ADC_MIN, SERVO_ANGLE_RANGE);
-  int angle2 = map(getAnalogHat(aileron), JOYSTICK_ADC_OUT_MIN, JOYSTICK_ADC_OUT_MAX, ADC_MIN, SERVO_ANGLE_RANGE);
-  int angle3 = SERVO_ANGLE_RANGE - map(getAnalogHat(aileron), JOYSTICK_ADC_OUT_MIN, JOYSTICK_ADC_OUT_MAX, ADC_MIN, SERVO_ANGLE_RANGE);
-  int angle4 = map(getAnalogHat(elevator), JOYSTICK_ADC_OUT_MIN, JOYSTICK_ADC_OUT_MAX, ADC_MIN, SERVO_ANGLE_RANGE);
-  switch (switchstate) {
-  case SEND_DATA_ON:
-    send_data.joystick_cur_val[0] = getAnalogHat(throttle);
-    send_data.joystick_cur_val[1] = getAnalogHat(diffrential);
-    send_data.joystick_cur_val[2] = getAnalogHat(aileron);
-    send_data.joystick_cur_val[3] = getAnalogHat(elevator);
-    send_data.diffrential_coe     = 0.0;
-    pad.joystick_cur_val[0]       = send_data.joystick_cur_val[0];
-    pad.joystick_cur_val[1]       = send_data.joystick_cur_val[1];
-    pad.joystick_cur_val[2]       = send_data.joystick_cur_val[2];
-    pad.joystick_cur_val[3]       = send_data.joystick_cur_val[3];
-    pad.send_icon                 = SEND_ON;
-    break;
-  case REMOTE_OFF:
-    send_data.switch_status[0]    = 0;
-    send_data.switch_status[1]    = 0;
-    send_data.switch_status[2]    = 0;
-    send_data.switch_status[3]    = 0;
-    send_data.switch_status[4]    = 0;
-    send_data.joystick_cur_val[0] = -255;
-    send_data.joystick_cur_val[1] = 0;
-    send_data.joystick_cur_val[2] = 0;
-    send_data.joystick_cur_val[3] = 0;
-    send_data.diffrential_coe     = 0.0;
-    pad.joystick_cur_val[0]       = send_data.joystick_cur_val[0];
-    pad.joystick_cur_val[1]       = send_data.joystick_cur_val[1];
-    pad.joystick_cur_val[2]       = send_data.joystick_cur_val[2];
-    pad.joystick_cur_val[3]       = send_data.joystick_cur_val[3];
-    pad.send_icon                 = SEND_OFF;
-    break;
-
-  default:
-    break;
-  }
-}
-/**
  * @brief 发送数据任务
  * 初始化ESP NOW，发送数据
  */
-void sendDataTask(void* pvParameters) {
+void mainTask(void* pvParameters) {
   ESP_NOW_Init();
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
-
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
   while (1) {
-    switchStateIdentify();
-    dataProcess();
-    xQueueSend(PadDataQueue, &pad, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-    esp_now_send(airCraftAddress, (uint8_t*)&send_data, sizeof(pad));
+    if (digitalRead(SWITCH_SEND) == 1) {
+      send_data.switch_status[0]    = digitalRead(SWITCH_SEND);
+      send_data.switch_status[1]    = digitalRead(SWITCH_AUTO);
+      send_data.switch_status[2]    = digitalRead(SWITCH_FLAP);
+      send_data.joystick_cur_val[0] = getAnalogHat(throttle);
+      send_data.joystick_cur_val[1] = getAnalogHat(diffrential);
+      send_data.joystick_cur_val[2] = getAnalogHat(aileron);
+      send_data.joystick_cur_val[3] = getAnalogHat(elevator);
+      // send_data.diffrential_coe     = 0.0;
+      oled.joystick_cur_val[0]      = send_data.joystick_cur_val[0];
+      oled.joystick_cur_val[1]      = send_data.joystick_cur_val[1];
+      oled.joystick_cur_val[2]      = send_data.joystick_cur_val[2];
+      oled.joystick_cur_val[3]      = send_data.joystick_cur_val[3];
+      oled.send_icon                = SEND_ON;
+    } else {
+      // 关闭发送按钮或关机断联
+      send_data.switch_status[0]    = 0;
+      send_data.switch_status[1]    = 0;
+      send_data.switch_status[2]    = 0;
+      send_data.joystick_cur_val[0] = -255;
+      send_data.joystick_cur_val[1] = 0;
+      send_data.joystick_cur_val[2] = 0;
+      send_data.joystick_cur_val[3] = 0;
+      // send_data.diffrential_coe     = 0.0;
+      oled.send_icon                = SEND_OFF;
+    }
+    esp_now_send(airCraftAddress, (uint8_t*)&send_data, sizeof(send_data));
+    xQueueSend(PadDataQueue, &oled, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+    // 低电量报警
+    if ((esp_connected && oled.airCraftPercentage <= BATTERY_MIN_PERCENTAGE) || oled.padPercentage <= BATTERY_MIN_PERCENTAGE) {
+      buzzerStatuas buzzer;
+      buzzer = BUZZER_REPEAT;
+      xQueueSend(BuzzerEventQueue, &buzzer, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+    }
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
@@ -245,5 +190,5 @@ void sendDataTask(void* pvParameters) {
  */
 void sendData_init() {
   PadDataQueue = xQueueCreate(3, sizeof(Pad));
-  xTaskCreatePinnedToCore(sendDataTask, "sendData", 2048, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(mainTask, "mainTask", 2048, NULL, 1, NULL, 0);
 }
