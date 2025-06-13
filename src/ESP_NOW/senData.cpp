@@ -35,7 +35,7 @@
 #define SERVO_ANGLE_RANGE 120             // 舵机角度范围
 #define ADC_MAX = pow(2, ADC_RESOLUTION); // ADC最大值
 
-#define QUEUE_MESSAGE_WAIT 20
+#define QUEUE_MESSAGE_WAIT 10
 
 int pitch_servo_angle, roll_servo_angle;
 
@@ -111,22 +111,17 @@ void ESP_NOW_Init() {
   esp_now_init();                       // 初始化ESP NOW
   esp_now_register_send_cb(OnDataSent); // 注册发送成功的回调函数
   esp_now_register_recv_cb(OnDataRecv); // 注册接受数据后的回调函数
-#ifdef DEBUG
-  Serial.println("Has RC'MAC been taken?");
-#endif
-  if (RC_num == 0) {
-    RC_num = get_MAC_address();
-    Serial.println("Oops! Let's try to get it again.");
-  } else {
-#ifdef DEBUG
-    Serial.println("MAC adrress has been taken!");
-#endif
-  }
   switch (RC_num) {
   case 1:
+#ifdef DEBUG
+    Serial.println("RC has been selected!");
+#endif
     memcpy(airCraftAddress, RC_brushless_1_0_1, sizeof(RC_brushless_1_0_1));
     break;
   case 2:
+#ifdef DEBUG
+    Serial.println("RC has been selected!");
+#endif
     memcpy(airCraftAddress, RC_brushless_1_0_2, sizeof(RC_brushless_1_0_2));
     break;
   default:
@@ -156,11 +151,11 @@ void mainTask(void* pvParameters) {
       send_data.joystick_cur_val[2] = getAnalogHat(aileron);
       send_data.joystick_cur_val[3] = getAnalogHat(elevator);
       // send_data.diffrential_coe     = 0.0;
-      oled.joystick_cur_val[0]      = send_data.joystick_cur_val[0];
-      oled.joystick_cur_val[1]      = send_data.joystick_cur_val[1];
-      oled.joystick_cur_val[2]      = send_data.joystick_cur_val[2];
-      oled.joystick_cur_val[3]      = send_data.joystick_cur_val[3];
-      oled.send_icon                = SEND_ON;
+      oled.joystick_cur_val[0] = send_data.joystick_cur_val[0];
+      oled.joystick_cur_val[1] = send_data.joystick_cur_val[1];
+      oled.joystick_cur_val[2] = send_data.joystick_cur_val[2];
+      oled.joystick_cur_val[3] = send_data.joystick_cur_val[3];
+      oled.send_icon           = SEND_ON;
     } else {
       // 关闭发送按钮或关机断联
       send_data.switch_status[0]    = 0;
@@ -171,7 +166,7 @@ void mainTask(void* pvParameters) {
       send_data.joystick_cur_val[2] = 0;
       send_data.joystick_cur_val[3] = 0;
       // send_data.diffrential_coe     = 0.0;
-      oled.send_icon                = SEND_OFF;
+      oled.send_icon = SEND_OFF;
     }
     esp_now_send(airCraftAddress, (uint8_t*)&send_data, sizeof(send_data));
     xQueueSend(PadDataQueue, &oled, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);

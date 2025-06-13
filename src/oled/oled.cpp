@@ -31,7 +31,7 @@
 
 #define SERVO_MAX_ANGLE 120 // 舵机最大角度
 
-#define QUEUE_MESSAGE_WAIT 20
+#define QUEUE_MESSAGE_WAIT 10
 
 // 构造oled对象
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
@@ -131,16 +131,10 @@ void unlock() {
       u8g2.sendBuffer();
     }
   }
-#ifdef DEBUG
-  Serial.println("RC has been selected!");
-#endif
 }
 
 uint8_t get_MAC_address() {
   return RC_num;
-#ifdef DEBUG
-  Serial.println("MAC address have been returned: " + String(get_MAC_address()));
-#endif
 }
 
 void oledButtonEvent() {
@@ -169,6 +163,9 @@ void oledButtonEvent() {
 void oleddisplay() {
   xQueueReceive(PadDataQueue, &data, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
   if (oled_display_flag == true) {
+#ifdef DEBUG
+    Serial.println("oled is ready!");
+#endif
     int throttle = map(data.joystick_cur_val[0], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255);
     int aileron  = map(data.joystick_cur_val[2], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE);
     int elevator = map(data.joystick_cur_val[3], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20));
