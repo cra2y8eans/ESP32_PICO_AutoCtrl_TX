@@ -23,38 +23,12 @@
 #define BATTERY_MIN_PERCENTAGE 20 // 低电量报警阈值
 
 #define SWITCH_SEND_UP 25       // 发送数据开
-#define SWITCH_SEND_DOWN -1     // 设备测试
-#define SWITCH_YAW_UP -2        // 偏航最小
-#define SWITCH_YAW_DOWN -3      // 偏航最大
-#define SWITCH_AILERON_UP -5    // 副翼最小
-#define SWITCH_AILERON_DOWN -6  // 副翼最大
-#define SWITCH_ELEVATOR_UP -8   // 升降舵最小
-#define SWITCH_ELEVATOR_DOWN -9 // 升降舵最大
 #define SWITCH_AUTO 17          // 自稳开关
 #define SWITCH_FLAP 19          // 襟翼开关
 
-#define HERTZ 50              // 频率
-#define SERVO_AILERON_L 2     // 左副翼引脚
-#define SERVO_AILERON_R 8     // 右副翼引脚
-#define SERVO_ELEVATOR 3      // 升降舵引脚
-#define SERVO_FREQ_MIN 500    // 舵机最小频率
-#define SERVO_FREQ_MAX 2500   // 舵机最大频率
-#define SERVO_ANGLE_RANGE 120 // 舵机最大角度
-#define MOTOR_PIN_L 5         // 左电机引脚
-#define MOTOR_PIN_R 6         // 右电机引脚
-#define MOTOR_PWM_MIN 205     // 电机频率
-#define MOTOR_PWM_MAX 410
-#define MOTOR_CHANNEL_L 4
-#define MOTOR_CHANNEL_R 5
-#define MOTOR_FREQUENCY 50
-#define MOTOR_RESOLUTION 12
 #define JOYSTICK_ADC_OUT_MAX 255  // 遥控器摇杆输出ADC最大值
 #define JOYSTICK_ADC_OUT_MIN -255 // 遥控器摇杆输出ADC最小值
 #define ADC_MIN 0                 // ADC最小值
-
-#define YAW_ADJ_PIN -20
-#define AILERON_ADJ_PIN -21
-#define ELEVATOR_ADJ_PIN -22
 
 #define QUEUE_MESSAGE_WAIT 20
 
