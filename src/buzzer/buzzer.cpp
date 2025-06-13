@@ -16,16 +16,15 @@
 #define BUZZER_REPEAT_INTERVAL 60
 #define BUZZER_SHORT_INTERVAL 200
 #define BUZZER_LONG_INTERVAL 1000
+#define QUEUE_MESSAGE_WAITING 20
+
+QueueHandle_t BuzzerEventQueue = NULL;
 
 void buzzerTask(void* pvParameters) {
   buzzerStatuas buzzerMode;
   while (1) {
-    xQueueReceive(buttonEventQueueBUZZER, &buzzerFlag, portMAX_DELAY);
-#ifdef DEBUG
-    Serial.println(buzzerFlag == true ? "buzzerFlag is true" : "buzzerFlag is false");
-#endif
     if (buzzerFlag == true) {
-      xQueueReceive(unlockEventQueueBUZZER, &buzzerMode, portMAX_DELAY);
+      xQueueReceive(BuzzerEventQueue, &buzzerMode, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
       switch (buzzerMode) {
       case BUZZER_SHORT:
         digitalWrite(BUZZER_PIN, HIGH);
@@ -59,6 +58,7 @@ void buzzerTask(void* pvParameters) {
 
 void buzzer_init() {
   pinMode(BUZZER_PIN, OUTPUT);
+  BuzzerEventQueue = xQueueCreate(3, sizeof(buzzerStatuas));
   xTaskCreatePinnedToCore(buzzerTask, "buzzerTask", 1024, NULL, 1, NULL, 1);
 #ifdef DEBUG
   Serial.println(buzzerTask == NULL ? "Fail to create buzzerTask" : "buzzerTask is created!");

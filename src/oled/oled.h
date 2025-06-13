@@ -1,15 +1,9 @@
 #pragma once
-#ifndef OLED_H
-#define OLED_H
 
 #include <Arduino.h>
 
-
-extern QueueHandle_t unlockEventQueueBUZZER;
-
+extern uint8_t       RC_num;
 
 void oled_init();
 void oled_task(void* pvParameters);
-
-
-#endif
+uint8_t get_MAC_address();

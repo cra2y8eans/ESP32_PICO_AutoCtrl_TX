@@ -1,12 +1,12 @@
 #include "oled.h"
 #include "ESP_NOW/sendData.h"
 #include "button/button.h"
+#include "buzzer/buzzer.h"
 #include "filter/my_analog_hat.h"
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <arduino.h>
 #include <freertos/FreeRTOS.h>
-#include "buzzer/buzzer.h"
 
 #define DEBUG
 
@@ -16,8 +16,6 @@
 
 #define SPEAKER_ON 59239
 #define SPEAKER_OFF 59215
-#define ESP_NOW_CONNECTED 0xe870
-#define ESP_NOW_DISCONNECTED 0xe791
 #define LOCK 0xe72e
 #define UNLOCK 0xe785
 #define SEND_ON 0xE898
@@ -33,8 +31,7 @@
 
 #define SERVO_MAX_ANGLE 120 // 舵机最大角度
 
-QueueHandle_t unlockEventQueueBUZZER = NULL;
-Pad           pad;
+#define QUEUE_MESSAGE_WAIT 20
 
 // 构造oled对象
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
@@ -42,8 +39,6 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
     /*重启引脚*/ U8X8_PIN_NONE,
     /*SCL引脚*/ SCL_PIN,
     /*SDA引脚*/ SDA_PIN);
-
-bool oled_display_flag = true;
 
 uint8_t num        = 2; // 总页数
 uint8_t page       = 0; // 正在显示的页面
@@ -54,13 +49,14 @@ String  RC_version = "";
 int speaker = SPEAKER_ON; // 扬声器图标
 int esp_now_signal, lock;
 
+static Pad data;
+
 void oled_init() {
+  setupAnalogHat();
   u8g2.begin();
   u8g2.enableUTF8Print();
-  unlockEventQueueBUZZER = xQueueCreate(3, sizeof(buzzerStatuas));
   xTaskCreatePinnedToCore(oled_task, "oled_task", 1024 * 2, NULL, 1, NULL, 1);
 #ifdef DEBUG
-  Serial.println(unlockEventQueueBUZZER == NULL ? "解锁队列创建失败" : "解锁队创建队列成功");
   Serial.println(oled_task == NULL ? "OLED任务创建失败" : "OLED任务创建成功");
 #endif
 }
@@ -83,7 +79,7 @@ void unlock() {
     if (reading > ADC_OUT_MAX - 10) {
       paringMax  = true;
       buzzerMode = BUZZER_SHORT;
-      xQueueSend(unlockEventQueueBUZZER, &buzzerMode, portMAX_DELAY);
+      xQueueSend(BuzzerEventQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
     }
   }
   delay(500);
@@ -100,14 +96,14 @@ void unlock() {
       RC_confirm = true;
       RC_version = "1.02";
       buzzerMode = BUZZER_SHORT;
-      xQueueSend(unlockEventQueueBUZZER, &buzzerMode, portMAX_DELAY);
+      xQueueSend(BuzzerEventQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
     }
     if (reading < ADC_OUT_MIN + 50) {
       RC_num     = 1;
       RC_confirm = true;
       RC_version = "1.01";
       buzzerMode = BUZZER_SHORT;
-      xQueueSend(unlockEventQueueBUZZER, &buzzerMode, portMAX_DELAY);
+      xQueueSend(BuzzerEventQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
     }
   }
   while (paringMax == true && RC_confirm == true && paringMin == false) {
@@ -122,7 +118,7 @@ void unlock() {
     if (reading < ADC_OUT_MIN + 2) {
       paringMin  = true;
       buzzerMode = BUZZER_LONG;
-      xQueueSend(unlockEventQueueBUZZER, &buzzerMode, portMAX_DELAY);
+      xQueueSend(BuzzerEventQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
     }
     while (paringMax == true && paringMin == true && progress < 100) {
       progress += 2;
@@ -145,38 +141,40 @@ uint8_t get_MAC_address() {
 #endif
 }
 
-void oledContent() {
+void oledButtonEvent() {
   ButtonState button_state;
-  xQueueReceive(padDataQueueOLED, &pad, portMAX_DELAY);
-  if (xQueueReceive(buttonEventQueueOLED, &button_state, portMAX_DELAY) == pdPASS) {
-    oled_display_flag = button_state == BUTTON_R_LONG_PRESS ? !oled_display_flag : oled_display_flag;
-    if (oled_display_flag == true) {
-      switch (button_state) {
-      case BUTTON_L_SHORT_PRESS:
-        num  = num + 1;
-        page = num % 2;
-        break;
-      case BUTTON_R_SHORT_PRESS:
-        if (page > 0) {
-          num = num - 1;
-        } else {
-          num = 0;
-        }
-        page = num % 2;
-        break;
-      default:
-        break;
+  xQueueReceive(ButtonEventQueue, &button_state, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+  oled_display_flag = button_state == BUTTON_R_LONG_PRESS ? !oled_display_flag : oled_display_flag;
+  if (oled_display_flag == true) {
+    switch (button_state) {
+    case BUTTON_L_SHORT_PRESS:
+      num  = num + 1;
+      page = num % 2;
+      break;
+    case BUTTON_R_SHORT_PRESS:
+      if (page > 0) {
+        num = num - 1;
+      } else {
+        num = 0;
       }
+      page = num % 2;
+      break;
+    default:
+      break;
     }
   }
 }
 
+void displayContent(){
+    xQueueReceive(PadDataQueue, &data, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+
+}
+
 void oleddisplay() {
   if (oled_display_flag == true) {
-    int throttle = pad.joystick_cur_val[0];
-    int aileron  = pad.joystick_cur_val[2];
-    int elevator = pad.joystick_cur_val[3];
-
+    int throttle = map(data.joystick_cur_val[0], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255);
+    int aileron  = map(data.joystick_cur_val[2], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE);
+    int elevator = map(data.joystick_cur_val[3], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20));
     switch (page) {
     case 0:
       // 设备状态
@@ -188,27 +186,27 @@ void oleddisplay() {
       // 手柄电量
       u8g2.setCursor(24, 61);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%.0f%%", pad.padPercentage);
+      u8g2.printf("%.0f%%", data.padPercentage);
       // 信号
       u8g2.setFont(aircraft_pad_icon_14);
-      u8g2.drawGlyph(2, 12, esp_now_signal);  // 信号图标
-      u8g2.drawGlyph(110, 13, pad.send_icon); // 发送开关图标
+      u8g2.drawGlyph(2, 12, esp_now_signal);   // 信号图标
+      u8g2.drawGlyph(110, 13, data.send_icon); // 发送开关图标
       // 飞机电量
       u8g2.setCursor(106, 61);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%.0f%%", pad.airCraftPercentage);
+      u8g2.printf("%.0f%%", data.airCraftPercentage);
       // 副翼
       u8g2.setCursor(6, 38);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", aileron = map(aileron, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE));
+      u8g2.printf("%02d°", aileron);
       // 升降舵
       u8g2.setCursor(102, 38);
       u8g2.setFont(u8g2_font_7x14B_tf);
-      u8g2.printf("%02d°", elevator = map(elevator, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20)));
+      u8g2.printf("%02d°", elevator);
       // 油门
       u8g2.setFont(u8g2_font_logisoso22_tr);
       u8g2.setCursor(42, 42);
-      u8g2.printf("%03d", throttle = map(throttle, ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255));
+      u8g2.printf("%03d", throttle);
       u8g2.sendBuffer();
       break;
     case 1:
@@ -216,9 +214,9 @@ void oleddisplay() {
       u8g2.setFont(u8g2_font_wqy12_t_gb2312b);
       u8g2.drawUTF8(5, 15, "电量");
       u8g2.setCursor(5, 35);
-      u8g2.printf("遥控器: %.2fv", pad.padBatteryVoltage);
+      u8g2.printf("遥控器: %.2fv", data.padBatteryVoltage);
       u8g2.setCursor(5, 55);
-      u8g2.printf("接收机: %.2fv", pad.airCraftBatteryVoltage);
+      u8g2.printf("接收机: %.2fv", data.airCraftBatteryVoltage);
       u8g2.sendBuffer();
       break;
     default:
@@ -233,7 +231,8 @@ void oleddisplay() {
 void oled_task(void* pvParameters) {
   unlock();
   while (1) {
-    oledContent();
+    oledButtonEvent();
+    displayContent();
     oleddisplay();
   }
 }
