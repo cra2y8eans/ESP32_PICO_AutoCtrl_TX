@@ -5,12 +5,13 @@
  * 将遥控器功能分为OLED显示、按钮判断、蜂鸣器、ESP NOW通讯等功能模块，通过freeRTOS任务运行
  * 将解锁操作整合到OLED任务中，将钮子开关判断、电池电量接收和读取整合到ESP NOW任务中
  * 各功能模块通过队列通信，实现模块间解耦
+ * RC MAC地址获取、蜂鸣器和OLED标志位通过extern修饰的全局变量实现
  */
 
+#include "ESP_NOW/sendData.h"
 #include "button/button.h"
 #include "buzzer/buzzer.h"
 #include "oled/oled.h"
-#include "ESP_NOW/sendData.h"
 #include <Arduino.h>
 
 #define ADC_RESOLUTION 12
