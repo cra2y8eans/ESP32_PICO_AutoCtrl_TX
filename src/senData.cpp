@@ -72,8 +72,8 @@ void mainTask(void* pvParameters) {
   peerInfo.channel = 1;        // 设置通信频道
   esp_now_add_peer(&peerInfo); // 添加通信对象
 
-  // TickType_t       xLastWakeTime = xTaskGetTickCount();
-  // const TickType_t xPeriod       = pdMS_TO_TICKS(12.5); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(12); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
   while (1) {
     if (digitalRead(SWITCH_SEND) == 1) {
       padData.switch_status[0]    = digitalRead(SWITCH_SEND);
@@ -99,8 +99,9 @@ void mainTask(void* pvParameters) {
       send_icon = SEND_OFF;
     }
     esp_now_send(airCraftAddress, (uint8_t*)&padData, sizeof(padData));
-    xQueueSend(PadDataQueue, &padData, 20);
-    // vTaskDelayUntil(&xLastWakeTime, xPeriod);
+    xQueueSend(PadDataQueue, &padData, 0);
+    // Serial.printf("开关：%d\n", padData.switch_status[0]);
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
   }
 }
 
@@ -108,7 +109,8 @@ void mainTask(void* pvParameters) {
  * @brief 任务和队列初始化
  */
 void sendData_init() {
-  PadDataQueue = xQueueCreate(3, sizeof(padData));
+  pinMode(SWITCH_SEND, INPUT_PULLDOWN);
+  PadDataQueue = xQueueCreate(3, sizeof(PadData));
   xTaskCreatePinnedToCore(mainTask, "mainTask", 2048, NULL, 1, NULL, 0);
 }
 

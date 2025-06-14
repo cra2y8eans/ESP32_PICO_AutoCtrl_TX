@@ -57,8 +57,8 @@ void oled_task(void* pvParameters) {
   u8g2.begin();
   u8g2.enableUTF8Print();
   PadData displayData;
-  // TickType_t       xLastWakeTime = xTaskGetTickCount();
-  // const TickType_t xFrequency    = pdMS_TO_TICKS(33); // 30Hz刷新率 (1000ms/30 ≈ 33ms)
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xFrequency    = pdMS_TO_TICKS(15); // 67Hz刷新率 (1000ms/15 ≈ 67ms)
   while (1) {
     if (xQueueReceive(PadDataQueue, &displayData, 0) == pdPASS) {
       // 有新数据时更新显示缓存
@@ -104,11 +104,8 @@ void oled_task(void* pvParameters) {
       //   u8g2.sendBuffer();
       // }
       // }
-      // vTaskDelayUntil(&xLastWakeTime, xFrequency);
-      // Serial.printf("油门: %d\n", displayData.joystick_cur_val[0]);
-      // Serial.printf("副翼: %d\n", displayData.joystick_cur_val[2]);
-      // Serial.printf("升降舵: %d\n", displayData.joystick_cur_val[3]);
-      Serial.printf("开关: %d\n", displayData.switch_status[0]);
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
     }
   }
 }
