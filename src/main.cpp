@@ -8,21 +8,20 @@
  * RC MAC地址获取、蜂鸣器和OLED标志位通过extern修饰的全局变量实现
  */
 
-#include "ESP_NOW/sendData.h"
-#include "button/button.h"
-#include "buzzer/buzzer.h"
-#include "oled/oled.h"
+
 #include <Arduino.h>
+#include "sendData.h"
+#include "oled.h"
 
 #define ADC_RESOLUTION 12
 
 void setup() {
   Serial.begin(115200);
   analogReadResolution(ADC_RESOLUTION);
-  oled_init();
   sendData_init();
-  buzzer_init();
-  button_init();
+  oled_init();
+  // buzzer_init();
+  // button_init();
   vTaskDelete(NULL);
 }
 void loop() {
