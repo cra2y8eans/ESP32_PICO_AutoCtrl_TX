@@ -1,0 +1,51 @@
+#include "battery.h"
+#include "batteryReading.hpp"
+#include "buzzer.h"
+#include "common.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <Arduino.h>
+
+#define BATTERY_PIN 36                    // 电池电量读取引脚
+#define BATTERY_MAX_VALUE 4.2             // 电池最大电量
+#define BATTERY_MIN_VALUE 3.2             // 电池最小电量
+#define BATTERY_MIN_PERCENTAGE 20         // 电池最低百分比
+#define PAD_BATTERY_READING_INTERVAL 3000 // 采样间隔
+#define R1 10000
+#define R2 9950
+#define AVERAGE_FILTER 50         // 滤波平均次数
+#define BATTERY_MIN_PERCENTAGE 20 // 低电量报警阈值
+
+BatReading    battery;
+QueueHandle_t BatteryToBuzzerQueue = NULL; // 电池到蜂鸣器的消息队列
+
+void batteryReadingTask(void* pvParameters) {
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(PAD_BATTERY_READING_INTERVAL);
+  while (1) {
+    BatReading::Bat batStatus = battery.read(AVERAGE_FILTER);
+    batteryStatus.pad[0]      = batStatus.voltage;
+    batteryStatus.pad[1]      = batStatus.voltsPercentage;
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
+  }
+}
+
+void lowBatteryAlarmTask(void* pvParameters) {
+  TickType_t       xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xPeriod       = pdMS_TO_TICKS(PAD_BATTERY_READING_INTERVAL);
+  while (1) {
+    if (batteryStatus.pad[1] < BATTERY_MIN_PERCENTAGE || batteryStatus.aircraft[1] < BATTERY_MIN_PERCENTAGE) {
+      buzzerStatuas buzzer;
+      buzzer = BUZZER_REPEAT;
+      xQueueSend(BatteryToBuzzerQueue, &buzzer, 10 / portTICK_PERIOD_MS);
+    }
+    vTaskDelayUntil(&xLastWakeTime, xPeriod);
+  }
+}
+
+void battery_init() {
+  BatteryToBuzzerQueue = xQueueCreate(3, sizeof(buzzerStatuas));
+  battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
+  xTaskCreatePinnedToCore(batteryReadingTask, "batteryReading", 1024, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(lowBatteryAlarmTask, "lowBatteryAlarm", 1024, NULL, 1, NULL, 1);
+}

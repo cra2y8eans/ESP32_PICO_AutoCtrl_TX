@@ -1,13 +1,14 @@
-// #pragma once
+#pragma once
 
-// #include <Arduino.h>
+#include <Arduino.h>
 
-// enum buzzerStatuas {
-//   BUZZER_SHORT,
-//   BUZZER_LONG,
-//   BUZZER_REPEAT
-// };
+enum buzzerStatuas {
+  BUZZER_SHORT,
+  BUZZER_LONG,
+  BUZZER_REPEAT,
+  BUZZER_NONE
+};
 
 
-// void buzzer_init();
-// void buzzerTask(void* pvParameters);
+void buzzer_init();
+void buzzerTask(void* pvParameters);

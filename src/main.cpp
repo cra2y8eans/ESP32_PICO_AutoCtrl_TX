@@ -8,20 +8,28 @@
  * RC MAC地址获取、蜂鸣器和OLED标志位通过extern修饰的全局变量实现
  */
 
-
-#include <Arduino.h>
-#include "sendData.h"
+#include "battery.h"
+#include "buzzer.h"
+#include "input_device.h"
+#include "joystick.h"
 #include "oled.h"
+#include "sendData.h"
+#include <Arduino.h>
+#include "my_analog_hat.h"
 
 #define ADC_RESOLUTION 12
 
 void setup() {
   Serial.begin(115200);
   analogReadResolution(ADC_RESOLUTION);
-  oled_init();
-  sendData_init();
-  // buzzer_init();
-  // button_init();
+  setupAnalogHat();
+
+  // oled_init();
+  // sendData_init();
+  buzzer_init();
+  joystick_init();
+  battery_init();
+  input_device_init();
   vTaskDelete(NULL);
 }
 void loop() {
