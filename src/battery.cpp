@@ -14,7 +14,6 @@
 #define R1 10000
 #define R2 9950
 #define AVERAGE_FILTER 50         // 滤波平均次数
-#define BATTERY_MIN_PERCENTAGE 20 // 低电量报警阈值
 
 BatReading battery;
 Battery_t  batteryStatus;
