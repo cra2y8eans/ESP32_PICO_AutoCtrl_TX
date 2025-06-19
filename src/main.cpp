@@ -23,7 +23,6 @@ void setup() {
   Serial.begin(115200);
   analogReadResolution(ADC_RESOLUTION);
   setupAnalogHat();
-
   // oled_init();
   // sendData_init();
   buzzer_init();

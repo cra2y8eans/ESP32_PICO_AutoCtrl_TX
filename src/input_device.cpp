@@ -21,7 +21,7 @@
 #define BUTTON_PIN_R_1 16
 #define BUTTON_PIN_R_2 17
 
-#define CLICK_INTERVAL 150
+#define CLICK_INTERVAL 20  // 短按间隔，需要判断double click的时候间隔不得低于150ms
 #define LONG_PRESS_INTERVAL 800
 #define BUTTON_CHECK_INTERVAL 20
 #define QUEUE_MESSAGE_WAITING 10
@@ -52,12 +52,6 @@ void switchState() {
       switchLastStatus[i] = currentStatus; // 更新开关状态，确保只触发一次
       xQueueSend(SwitchEventQueue, switchLastStatus, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
     }
-#ifdef DEBUG
-    Serial.printf("Switches sent: SEND=%d AUTO=%d FLAP=%d\n",
-        switchLastStatus[0],
-        switchLastStatus[1],
-        switchLastStatus[2]);
-#endif
   }
 }
 
@@ -70,95 +64,38 @@ void sendButtonEvent(ButtonState btnState, buzzerStatuas buzzer = BUZZER_NONE) {
 
 void button_L_1_ShortPress() {
   sendButtonEvent(BUTTON_L_1_SHORT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_L_1_SHORT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 }
 
 void button_L_1_LongPress() {
-  sendButtonEvent(BUTTON_L_1_LONG_PRESS, BUZZER_LONG);
-  // ButtonState btnState;
-  // btnState = BUTTON_L_1_LONG_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-}
-
-void button_L_1_RepeatPress() {
-  sendButtonEvent(BUTTON_L_1_REPEAT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_L_1_REPEAT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
+  sendButtonEvent(BUTTON_L_1_LONG_PRESS);
 }
 
 void button_L_2_ShortPress() {
   sendButtonEvent(BUTTON_L_2_SHORT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_L_2_SHORT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 }
 
 void button_L_2_LongPress() {
   buzzerFlag = !buzzerFlag;
   sendButtonEvent(BUTTON_L_2_LONG_PRESS, BUZZER_LONG);
-  // ButtonState   btnState;
-  // buzzerStatuas buzzer;
-  // btnState = BUTTON_L_2_LONG_PRESS;
-  // buzzer   = BUZZER_LONG;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-  // xQueueSend(ButtonToBuzzerQueue, &buzzer, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-}
-
-void button_L_2_RepeatPress() {
-  sendButtonEvent(BUTTON_L_2_REPEAT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_L_2_REPEAT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 }
 
 void button_R_1_ShortPress() {
   sendButtonEvent(BUTTON_R_1_SHORT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_R_1_SHORT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 }
 
 void button_R_1_LongPress() {
   sendButtonEvent(BUTTON_R_1_LONG_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_R_1_LONG_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-}
-
-void button_R_1_RepeatPress() {
-  sendButtonEvent(BUTTON_R_1_REPEAT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_R_1_REPEAT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 }
 
 void button_R_2_ShortPress() {
   sendButtonEvent(BUTTON_R_2_SHORT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_R_2_SHORT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 }
 
 void button_R_2_LongPress() {
   oled_display_flag = !oled_display_flag;
   sendButtonEvent(BUTTON_R_2_LONG_PRESS, BUZZER_LONG);
-  // ButtonState   btnState;
-  // buzzerStatuas buzzer;
-  // btnState = BUTTON_R_2_LONG_PRESS;
-  // buzzer   = BUZZER_LONG;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-  // xQueueSend(ButtonToBuzzerQueue, &buzzer, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 }
 
-void button_R_2_RepeatPress() {
-  sendButtonEvent(BUTTON_R_2_REPEAT_PRESS);
-  // ButtonState btnState;
-  // btnState = BUTTON_R_2_REPEAT_PRESS;
-  // xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-}
 
 void input_device_task(void* pvParameters) {
   for (int i = 0; i < SWITCH_INDEX; i++) {
@@ -178,19 +115,15 @@ void input_device_task(void* pvParameters) {
 
   button_l_1.attachClick(button_L_1_ShortPress);
   button_l_1.attachLongPressStart(button_L_1_LongPress);
-  button_l_1.attachDoubleClick(button_L_1_RepeatPress);
 
   button_l_2.attachClick(button_L_2_ShortPress);
   button_l_2.attachLongPressStart(button_L_2_LongPress);
-  button_l_2.attachDoubleClick(button_L_2_RepeatPress);
 
   button_r_1.attachClick(button_R_1_ShortPress);
   button_r_1.attachLongPressStart(button_R_1_LongPress);
-  button_r_1.attachDoubleClick(button_R_1_RepeatPress);
 
   button_r_2.attachClick(button_R_2_ShortPress);
   button_r_2.attachLongPressStart(button_R_2_LongPress);
-  button_r_2.attachDoubleClick(button_R_2_RepeatPress);
 
   while (1) {
     button_l_1.tick();

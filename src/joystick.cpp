@@ -12,8 +12,6 @@
 #define STICK_R_HORI 32 // 右摇杆水平
 #define STICK_R_VERT 35 // 右摇杆垂直
 
-// QueueHandle_t ADCvalueQueue = NULL;
-
 void getADCvalue(void* pvParameters) {
   uint8_t          switchLastStatus[3] = { 0 }; // 存储四个摇杆的ADC值
   TickType_t       xLastWakeTime       = xTaskGetTickCount();
@@ -33,16 +31,13 @@ void getADCvalue(void* pvParameters) {
     static int count = 0;
     if (++count >= 50) {
       count = 0;
-      Serial.printf("ADC value from joystick: LH=%d, LV=%d, RH=%d, RV=%d\n",
-          sendData.adcValue[0], sendData.adcValue[1], sendData.adcValue[2], sendData.adcValue[3]);
+      Serial.printf("ADC value from joystick: LH:%d, LV:%d, RH:%d, RV:%d\n", sendData.adcValue[0], sendData.adcValue[1], sendData.adcValue[2], sendData.adcValue[3]);
+      Serial.printf("Switches status from joystick: SEND:%d AUTO:%d FLAP:%d\n", sendData.switchStatus[0], sendData.switchStatus[1], sendData.switchStatus[2]);
     }
-    Serial.printf("Switches status from joystick: SEND=%d AUTO=%d FLAP=%d\n",
-        sendData.switchStatus[0], sendData.switchStatus[1], sendData.switchStatus[2]);
 #endif
   }
 }
 
 void joystick_init() {
-  //   ADCvalueQueue = xQueueCreate(3, sizeof(int8_t) * 4); // 创建ADC值队列
   xTaskCreatePinnedToCore(getADCvalue, "getADCvalue", 1024 * 2, NULL, 1, NULL, 1);
 }

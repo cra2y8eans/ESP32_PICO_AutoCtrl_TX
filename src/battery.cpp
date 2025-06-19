@@ -16,7 +16,10 @@
 #define AVERAGE_FILTER 50         // 滤波平均次数
 #define BATTERY_MIN_PERCENTAGE 20 // 低电量报警阈值
 
-BatReading    battery;
+BatReading battery;
+Battery_t  batteryStatus;
+sendData_t sendData;
+
 QueueHandle_t BatteryToBuzzerQueue = NULL; // 电池到蜂鸣器的消息队列
 
 void batteryReadingTask(void* pvParameters) {
@@ -31,15 +34,39 @@ void batteryReadingTask(void* pvParameters) {
 }
 
 void lowBatteryAlarmTask(void* pvParameters) {
-  TickType_t       xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xPeriod       = pdMS_TO_TICKS(PAD_BATTERY_READING_INTERVAL);
+  static unsigned long lastAlarmStart = 0;     // 上次报警开始时间
+  static bool          isAlerted      = false; // 是否已经报警过（进入静默期）
   while (1) {
     if (batteryStatus.pad[1] < BATTERY_MIN_PERCENTAGE || batteryStatus.aircraft[1] < BATTERY_MIN_PERCENTAGE) {
-      buzzerStatuas buzzer;
-      buzzer = BUZZER_REPEAT;
-      xQueueSend(BatteryToBuzzerQueue, &buzzer, 10 / portTICK_PERIOD_MS);
+      unsigned long currentTime = millis();
+      if (!isAlerted) {
+        // 未报警过，可以开始报警
+        if (currentTime - lastAlarmStart <= 5000) {
+          // 在5秒报警期内
+          buzzerStatuas buzzer = BUZZER_REPEAT;
+          xQueueSend(BatteryToBuzzerQueue, &buzzer, 10);
+          // 发送一次报警后延迟1秒（每秒报警一次）
+          vTaskDelay(1000 / portTICK_PERIOD_MS);
+        } else {
+          // 5秒报警结束，进入15秒静默期
+          isAlerted      = true;
+          lastAlarmStart = currentTime; // 重置计时器
+        }
+      } else {
+        // 已经报警过，处于静默期
+        if (currentTime - lastAlarmStart > 15000) {
+          // 15秒静默结束，重置状态
+          isAlerted      = false;
+          lastAlarmStart = currentTime;
+        }
+      }
+    } else {
+      // 电池电量恢复正常
+      isAlerted      = false; // 重置报警状态
+      lastAlarmStart = 0;     // 重置计时器
     }
-    vTaskDelayUntil(&xLastWakeTime, xPeriod);
+    // 基础循环延迟
+    vTaskDelay(1500 / portTICK_PERIOD_MS);
   }
 }
 

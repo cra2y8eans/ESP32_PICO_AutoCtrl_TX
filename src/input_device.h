@@ -7,19 +7,15 @@
 enum ButtonState {
   BUTTON_L_1_SHORT_PRESS,  // 左按钮短按
   BUTTON_L_1_LONG_PRESS,   // 左按钮长按
-  BUTTON_L_1_REPEAT_PRESS, // 左按钮重复按下
 
   BUTTON_L_2_SHORT_PRESS,  // 左按钮短按
   BUTTON_L_2_LONG_PRESS,   // 左按钮长按
-  BUTTON_L_2_REPEAT_PRESS, // 左按钮重复按下
 
   BUTTON_R_1_SHORT_PRESS,  // 右按钮短按
   BUTTON_R_1_LONG_PRESS,   // 右按钮长按
-  BUTTON_R_1_REPEAT_PRESS, // 右按钮重复按下
 
   BUTTON_R_2_SHORT_PRESS,  // 右按钮短按
   BUTTON_R_2_LONG_PRESS,   // 右按钮长按
-  BUTTON_R_2_REPEAT_PRESS, // 右按钮重复按下
 };
 
 extern QueueHandle_t ButtonToOledQueue;

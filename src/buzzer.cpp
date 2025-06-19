@@ -24,9 +24,6 @@ void buzzerTask(void* pvParameters) {
   while (1) {
     if (buzzerFlag == true) {
       if (xQueueReceive(ButtonToBuzzerQueue, &buzzerMode, portMAX_DELAY) == pdPASS) {
-#ifdef DEBUG
-        Serial.printf("Buzzer mode received: %d\n", buzzerMode);
-#endif
         switch (buzzerMode) {
         case BUZZER_SHORT:
           digitalWrite(BUZZER_PIN, HIGH);

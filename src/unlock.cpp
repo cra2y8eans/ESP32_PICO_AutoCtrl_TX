@@ -1,4 +1,3 @@
-#pragma once
 #include "buzzer.h"
 #include "common.h"
 #include "freertos/FreeRTOS.h"
