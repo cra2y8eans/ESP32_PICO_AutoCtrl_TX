@@ -1,4 +1,4 @@
-// #pragma once
-// #include <Arduino.h>
+#pragma once
+#include <Arduino.h>
 
-// void unlock(); // 解锁函数
+void unlock(); // 解锁函数

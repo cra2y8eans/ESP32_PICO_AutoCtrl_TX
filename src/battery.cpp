@@ -13,7 +13,7 @@
 #define PAD_BATTERY_READING_INTERVAL 3000 // 采样间隔
 #define R1 10000
 #define R2 9950
-#define AVERAGE_FILTER 50         // 滤波平均次数
+#define AVERAGE_FILTER 50 // 滤波平均次数
 
 BatReading battery;
 Battery_t  batteryStatus;
@@ -22,21 +22,17 @@ sendData_t sendData;
 QueueHandle_t BatteryToBuzzerQueue = NULL; // 电池到蜂鸣器的消息队列
 
 void batteryReadingTask(void* pvParameters) {
-  TickType_t       xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xPeriod       = pdMS_TO_TICKS(PAD_BATTERY_READING_INTERVAL);
+  static unsigned long lastAlarmStart = 0;     // 上次报警开始时间
+  static bool          isAlerted      = false; // 是否已经报警过（进入静默期）
+  // TickType_t           xLastWakeTime  = xTaskGetTickCount();
+  // const TickType_t     xPeriod        = pdMS_TO_TICKS(PAD_BATTERY_READING_INTERVAL);
+
   while (1) {
     BatReading::Bat batStatus = battery.read(AVERAGE_FILTER);
     batteryStatus.pad[0]      = batStatus.voltage;
     batteryStatus.pad[1]      = batStatus.voltsPercentage;
-    vTaskDelayUntil(&xLastWakeTime, xPeriod);
-  }
-}
 
-void lowBatteryAlarmTask(void* pvParameters) {
-  static unsigned long lastAlarmStart = 0;     // 上次报警开始时间
-  static bool          isAlerted      = false; // 是否已经报警过（进入静默期）
-  while (1) {
-    if (batteryStatus.pad[1] < BATTERY_MIN_PERCENTAGE || batteryStatus.aircraft[1] < BATTERY_MIN_PERCENTAGE) {
+    if (batteryStatus.pad[1] < BATTERY_MIN_PERCENTAGE || aircraft.batteryValue[1] < BATTERY_MIN_PERCENTAGE) {
       unsigned long currentTime = millis();
       if (!isAlerted) {
         // 未报警过，可以开始报警
@@ -65,13 +61,15 @@ void lowBatteryAlarmTask(void* pvParameters) {
       lastAlarmStart = 0;     // 重置计时器
     }
     // 基础循环延迟
-    vTaskDelay(1500 / portTICK_PERIOD_MS);
+    // vTaskDelay(1500 / portTICK_PERIOD_MS);
   }
+  // vTaskDelayUntil(&xLastWakeTime, xPeriod);
+  vTaskDelay(3000 / portTICK_PERIOD_MS);
 }
 
 void battery_init() {
   BatteryToBuzzerQueue = xQueueCreate(3, sizeof(buzzerStatuas));
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
   xTaskCreatePinnedToCore(batteryReadingTask, "batteryReading", 1024, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(lowBatteryAlarmTask, "lowBatteryAlarm", 1024, NULL, 1, NULL, 1);
+  // xTaskCreatePinnedToCore(lowBatteryAlarmTask, "lowBatteryAlarm", 1024, NULL, 1, NULL, 1);
 }

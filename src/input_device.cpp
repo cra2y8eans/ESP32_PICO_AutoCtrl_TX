@@ -21,7 +21,7 @@
 #define BUTTON_PIN_R_1 16
 #define BUTTON_PIN_R_2 17
 
-#define CLICK_INTERVAL 20  // 短按间隔，需要判断double click的时候间隔不得低于150ms
+#define CLICK_INTERVAL 20 // 短按间隔，需要判断double click的时候间隔不得低于150ms
 #define LONG_PRESS_INTERVAL 800
 #define BUTTON_CHECK_INTERVAL 20
 #define QUEUE_MESSAGE_WAITING 10
@@ -96,7 +96,6 @@ void button_R_2_LongPress() {
   sendButtonEvent(BUTTON_R_2_LONG_PRESS, BUZZER_LONG);
 }
 
-
 void input_device_task(void* pvParameters) {
   for (int i = 0; i < SWITCH_INDEX; i++) {
     pinMode(switchArr[i], INPUT_PULLDOWN);
@@ -139,7 +138,7 @@ void input_device_init() {
   ButtonToOledQueue   = xQueueCreate(3, sizeof(ButtonState));
   ButtonToBuzzerQueue = xQueueCreate(3, sizeof(buzzerStatuas));
   SwitchEventQueue    = xQueueCreate(3, sizeof(switchLastStatus));
-  xTaskCreatePinnedToCore(input_device_task, "input_device_task", 1024, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(input_device_task, "input_device_task", 1024 * 2, NULL, 1, NULL, 1);
 #ifdef DEBUG
   Serial.println(ButtonToOledQueue == NULL ? "Failed to create OLED queue!" : "OLED queue created!");
   Serial.println(input_device_task == NULL ? "Failed to create button task!" : "Button task created!");

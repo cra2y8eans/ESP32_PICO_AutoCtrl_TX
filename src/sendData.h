@@ -1,11 +1,7 @@
-// #ifndef _SEND_DATA_H_
-// #define _SEND_DATA_H_
+#ifndef _SEND_DATA_H_
+#define _SEND_DATA_H_
 
-// #include <Arduino.h>
-
-// extern int send_icon, esp_now_signal;
-// extern QueueHandle_t PadDataQueue;
-// extern bool esp_connected;
+#include <Arduino.h>
 
 // typedef struct {
 //   int     joystick_cur_val[4] = {}; // 0、油门        1、差速         2、副翼         3、升降舵
@@ -27,7 +23,7 @@
 
 // // extern QueueHandle_t PadDataQueue;
 
-// void sendData_init();
-// void mainTask(void* pvParameters);
+void sendData_init();
+void mainTask(void* pvParameters);
 
-// #endif
+#endif

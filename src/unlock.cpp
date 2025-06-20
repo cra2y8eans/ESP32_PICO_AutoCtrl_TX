@@ -33,6 +33,7 @@ void unlock() {
 
   u8g2_unlock.begin();
   u8g2_unlock.enableUTF8Print();
+  setupAnalogHat();
   bool    paringMax  = false;
   bool    paringMin  = false;
   bool    RC_confirm = false;

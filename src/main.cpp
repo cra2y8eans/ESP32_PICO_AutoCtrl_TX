@@ -10,25 +10,27 @@
 
 #include "battery.h"
 #include "buzzer.h"
+#include "dataProcessing.h"
 #include "input_device.h"
 #include "joystick.h"
+#include "my_analog_hat.h"
 #include "oled.h"
 #include "sendData.h"
+#include "unlock.h"
 #include <Arduino.h>
-#include "my_analog_hat.h"
 
 #define ADC_RESOLUTION 12
 
 void setup() {
   Serial.begin(115200);
   analogReadResolution(ADC_RESOLUTION);
-  setupAnalogHat();
-  // oled_init();
-  // sendData_init();
   buzzer_init();
+  unlock();
   joystick_init();
-  battery_init();
+  oled_init();
+  dataProcessingInit();
   input_device_init();
+  battery_init();
   vTaskDelete(NULL);
 }
 void loop() {
