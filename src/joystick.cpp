@@ -6,7 +6,7 @@
 #include "input_device.h"
 #include "my_analog_hat.h"
 
-#define DEBUG
+// #define DEBUG
 #define STICK_L_HORI 34 // 左摇杆水平
 #define STICK_L_VERT 39 // 左摇杆垂直
 #define STICK_R_HORI 32 // 右摇杆水平
@@ -17,7 +17,7 @@ void getADCvalue(void* pvParameters) {
   TickType_t       xLastWakeTime       = xTaskGetTickCount();
   const TickType_t xPeriod             = pdMS_TO_TICKS(10); // 频率 100Hz → 周期为 1/100 = 0.01 秒 = 10 毫秒
   while (1) {
-    if (xQueueReceive(SwitchEventQueue, switchLastStatus, 0) == pdPASS) {
+    if (xQueueReceive(SwitchEventQueue, switchLastStatus, 10) == pdPASS) {
       sendData.switchStatus[0] = switchLastStatus[0]; // 发送开关
       sendData.switchStatus[1] = switchLastStatus[1]; // 自稳开关
       sendData.switchStatus[2] = switchLastStatus[2]; // 襟翼开关
@@ -28,8 +28,8 @@ void getADCvalue(void* pvParameters) {
       sendData.adcValue[2] = getAnalogHat(aileron);     // 右摇杆水平
       sendData.adcValue[3] = getAnalogHat(elevator);    // 右摇杆垂直
     } else {
-      sendData.adcValue[0] = -255; // 关闭发送按钮或关机断联
-      sendData.adcValue[1] = 0;
+      sendData.adcValue[0] = 0; // 关闭发送按钮或关机断联
+      sendData.adcValue[1] = -255;
       sendData.adcValue[2] = 0;
       sendData.adcValue[3] = 0;
     }
@@ -48,5 +48,5 @@ void getADCvalue(void* pvParameters) {
 }
 
 void joystick_init() {
-  xTaskCreatePinnedToCore(getADCvalue, "getADCvalue", 1024 * 2, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(getADCvalue, "getADCvalue", 1024 * 4, NULL, 1, NULL, 1);
 }

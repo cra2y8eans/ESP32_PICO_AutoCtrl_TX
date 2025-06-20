@@ -4,7 +4,7 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 
-#define DEBUG
+// #define DEBUG
 
 #define ESP_NOW_CONNECTED 0xe870
 #define ESP_NOW_DISCONNECTED 0xe791
@@ -57,23 +57,38 @@ void selectRC() {
  * 初始化ESP NOW，发送数据
  */
 void mainTask(void* pvParameters) {
-  WiFi.mode(WIFI_STA); // 设置wifi为STA模式
-  WiFi.begin();
+  WiFi.mode(WIFI_STA);                  // 设置wifi为STA模式
   esp_now_init();                       // 初始化ESP NOW
   esp_now_register_send_cb(OnDataSent); // 注册发送成功的回调函数
   esp_now_register_recv_cb(OnDataRecv); // 注册接受数据后的回调函数
   selectRC();
+#ifdef DEBUG
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW init failed");
+  } else {
+    Serial.println("ESP-NOW init success");
+  }
+#endif
   TickType_t       xLastWakeTime = xTaskGetTickCount();
   const TickType_t xPeriod       = pdMS_TO_TICKS(12); // 频率 80Hz → 周期为 1/80 = 0.0125 秒 = 12.5 毫秒
   while (1) {
     esp_now_send(airCraftAddress, (uint8_t*)&sendData, sizeof(sendData));
     vTaskDelayUntil(&xLastWakeTime, xPeriod);
+#ifdef DEBUG
+    static int count = 0;
+    if (++count >= 50) {
+      count = 0;
+      Serial.printf("ADC value from joystick: LH:%d, LV:%d, RH:%d, RV:%d\n",
+          sendData.adcValue[0], sendData.adcValue[1], sendData.adcValue[2], sendData.adcValue[3]);
+      Serial.printf("Switches status from joystick: SEND:%d AUTO:%d FLAP:%d\n",
+          sendData.switchStatus[0], sendData.switchStatus[1], sendData.switchStatus[2]);
+    }
+#endif
   }
 }
-
 /**
  * @brief 任务和队列初始化
  */
 void sendDataInit() {
-  xTaskCreatePinnedToCore(mainTask, "mainTask", 2048, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(mainTask, "mainTask", 1024 * 6, NULL, 1, NULL, 1);
 }

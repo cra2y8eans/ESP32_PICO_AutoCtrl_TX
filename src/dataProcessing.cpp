@@ -19,21 +19,21 @@
 
 #define SERVO_MAX_ANGLE 120 // 舵机最大角度
 
-OLED_t      oled;
-ButtonState btnState;
+OLED_t oled;
 
 void AssignValues() {
+  ButtonState btnState;
   oled.icon[0]         = sendData.switchStatus[0] ? SEND_ON : SEND_OFF;                                        // 发送开关图标
   oled.icon[1]         = buzzerFlag ? SPEAKER_ON : SPEAKER_OFF;                                                // 蜂鸣器图标
   oled.icon[2]         = esp_connected ? ESP_NOW_CONNECTED : ESP_NOW_DISCONNECTED;                             // 连接状态图标                                          // 连接状态图标
-  oled.adcValue[1]     = map(sendData.adcValue[0], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255);                    // 油门
-  oled.adcValue[2]     = map(sendData.adcValue[1], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE);        // 副翼
-  oled.adcValue[3]     = map(sendData.adcValue[2], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20)); // 升降舵
+  oled.adcValue[1]     = map(sendData.adcValue[1], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255);                    // 油门
+  oled.adcValue[2]     = map(sendData.adcValue[2], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE);        // 副翼
+  oled.adcValue[3]     = map(sendData.adcValue[3], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20)); // 升降舵
   oled.batteryValue[0] = batteryStatus.pad[0];                                                                 // 遥控器电压
   oled.batteryValue[1] = batteryStatus.pad[1];                                                                 // 遥控器电量
   oled.batteryValue[2] = aircraft.batteryValue[0];                                                             // 飞机电压
   oled.batteryValue[3] = aircraft.batteryValue[1];                                                             // 飞机电量
-  if (xQueueReceive(ButtonToOledQueue, &btnState, 0) == pdTRUE) {
+  if (xQueueReceive(ButtonToOledQueue, &btnState, 10) == pdTRUE) {
     switch (btnState) {
     case BUTTON_L_1_SHORT_PRESS:
       oled.num -= 1;
@@ -62,5 +62,5 @@ void dataProcessingTask(void* pvParameters) {
 }
 
 void dataProcessingInit() {
-  xTaskCreatePinnedToCore(dataProcessingTask, "dataProcessingTask", 1024 * 4, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(dataProcessingTask, "dataProcessingTask", 1024 * 6, NULL, 1, NULL, 1);
 }

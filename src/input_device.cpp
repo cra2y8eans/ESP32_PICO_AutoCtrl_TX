@@ -14,7 +14,7 @@
 #include "freertos/task.h"
 #include <Arduino.h>
 
-#define DEBUG
+// #define DEBUG
 
 #define BUTTON_PIN_L_1 13
 #define BUTTON_PIN_L_2 26
@@ -101,6 +101,7 @@ void input_device_task(void* pvParameters) {
     pinMode(switchArr[i], INPUT_PULLDOWN);
     switchLastStatus[i] = digitalRead(switchArr[i]); // 初始化开关状态
   }
+  xQueueSend(SwitchEventQueue, switchLastStatus, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
 
   button_l_1.setClickMs(CLICK_INTERVAL / portTICK_PERIOD_MS);
   button_l_1.setPressMs(LONG_PRESS_INTERVAL / portTICK_PERIOD_MS);
@@ -138,7 +139,7 @@ void input_device_init() {
   ButtonToOledQueue   = xQueueCreate(3, sizeof(ButtonState));
   ButtonToBuzzerQueue = xQueueCreate(3, sizeof(buzzerStatuas));
   SwitchEventQueue    = xQueueCreate(3, sizeof(switchLastStatus));
-  xTaskCreatePinnedToCore(input_device_task, "input_device_task", 1024 * 2, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(input_device_task, "input_device_task", 1024 * 4, NULL, 1, NULL, 1);
 #ifdef DEBUG
   Serial.println(ButtonToOledQueue == NULL ? "Failed to create OLED queue!" : "OLED queue created!");
   Serial.println(input_device_task == NULL ? "Failed to create button task!" : "Button task created!");

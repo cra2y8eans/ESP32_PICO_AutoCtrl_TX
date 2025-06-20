@@ -10,6 +10,7 @@
 
 #include "battery.h"
 #include "buzzer.h"
+#include "common.h"
 #include "dataProcessing.h"
 #include "input_device.h"
 #include "joystick.h"
@@ -24,15 +25,16 @@
 void setup() {
   Serial.begin(115200);
   analogReadResolution(ADC_RESOLUTION);
-  buzzer_init();
-  unlock();
-  joystick_init();
-  oled_init();
-  dataProcessingInit();
+
   input_device_init();
+  buzzer_init();
+  oled_init();
+  joystick_init();
+  dataProcessingInit();
   battery_init();
   sendDataInit();
-  vTaskDelete(NULL);
+
+  // vTaskDelete(NULL);
 }
 void loop() {
 }

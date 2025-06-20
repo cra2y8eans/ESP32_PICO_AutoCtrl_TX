@@ -12,7 +12,7 @@
 #include "input_device.h"
 #include "oled.h"
 
-#define DEBUG
+// #define DEBUG
 #define BUZZER_PIN 23
 #define BUZZER_REPEAT_INTERVAL 60
 #define BUZZER_SHORT_INTERVAL 200
@@ -23,38 +23,40 @@ void buzzerTask(void* pvParameters) {
   buzzerStatuas buzzerMode;
   while (1) {
     if (buzzerFlag == true) {
-      if (xQueueReceive(ButtonToBuzzerQueue, &buzzerMode, portMAX_DELAY) == pdPASS) {
-        switch (buzzerMode) {
-        case BUZZER_SHORT:
-          digitalWrite(BUZZER_PIN, HIGH);
-          vTaskDelay(BUZZER_SHORT_INTERVAL / portTICK_PERIOD_MS);
-          digitalWrite(BUZZER_PIN, LOW);
-          break;
-        case BUZZER_LONG:
-          digitalWrite(BUZZER_PIN, HIGH);
-          vTaskDelay(BUZZER_LONG_INTERVAL / portTICK_PERIOD_MS);
-          digitalWrite(BUZZER_PIN, LOW);
-          break;
-        case BUZZER_REPEAT:
-          digitalWrite(BUZZER_PIN, HIGH);
-          vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
-          digitalWrite(BUZZER_PIN, LOW);
-          vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
-          digitalWrite(BUZZER_PIN, HIGH);
-          vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
-          digitalWrite(BUZZER_PIN, LOW);
-          vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
-          digitalWrite(BUZZER_PIN, HIGH);
-          vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
-          digitalWrite(BUZZER_PIN, LOW);
-          vTaskDelay(1000 / portTICK_PERIOD_MS);
-          break;
-        default:
-          break;
+      if (ButtonToBuzzerQueue != NULL) {
+        if (xQueueReceive(ButtonToBuzzerQueue, &buzzerMode, 10) == pdPASS) {
+          switch (buzzerMode) {
+          case BUZZER_SHORT:
+            digitalWrite(BUZZER_PIN, HIGH);
+            vTaskDelay(BUZZER_SHORT_INTERVAL / portTICK_PERIOD_MS);
+            digitalWrite(BUZZER_PIN, LOW);
+            break;
+          case BUZZER_LONG:
+            digitalWrite(BUZZER_PIN, HIGH);
+            vTaskDelay(BUZZER_LONG_INTERVAL / portTICK_PERIOD_MS);
+            digitalWrite(BUZZER_PIN, LOW);
+            break;
+          case BUZZER_REPEAT:
+            digitalWrite(BUZZER_PIN, HIGH);
+            vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
+            digitalWrite(BUZZER_PIN, LOW);
+            vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
+            digitalWrite(BUZZER_PIN, HIGH);
+            vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
+            digitalWrite(BUZZER_PIN, LOW);
+            vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
+            digitalWrite(BUZZER_PIN, HIGH);
+            vTaskDelay(BUZZER_REPEAT_INTERVAL / portTICK_PERIOD_MS);
+            digitalWrite(BUZZER_PIN, LOW);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            break;
+          default:
+            break;
+          }
         }
+      } else {
+        digitalWrite(BUZZER_PIN, LOW);
       }
-    } else {
-      digitalWrite(BUZZER_PIN, LOW);
     }
   }
 }

@@ -19,6 +19,15 @@ BatReading battery;
 Battery_t  batteryStatus;
 sendData_t sendData;
 
+/************* */
+// Aircraft aircraft; // 飞机数据结构体
+
+// bool esp_connected  = false; // ESP NOW连接状态标志位
+// int  esp_now_signal = 0;     // ESP NOW信号标志位
+// OLED_t oled; // OLED数据结构体
+
+/************* */
+
 QueueHandle_t BatteryToBuzzerQueue = NULL; // 电池到蜂鸣器的消息队列
 
 void batteryReadingTask(void* pvParameters) {
@@ -61,7 +70,7 @@ void batteryReadingTask(void* pvParameters) {
       lastAlarmStart = 0;     // 重置计时器
     }
     // 基础循环延迟
-    // vTaskDelay(1500 / portTICK_PERIOD_MS);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
   }
   // vTaskDelayUntil(&xLastWakeTime, xPeriod);
   vTaskDelay(3000 / portTICK_PERIOD_MS);
@@ -70,6 +79,6 @@ void batteryReadingTask(void* pvParameters) {
 void battery_init() {
   BatteryToBuzzerQueue = xQueueCreate(3, sizeof(buzzerStatuas));
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
-  xTaskCreatePinnedToCore(batteryReadingTask, "batteryReading", 1024, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(batteryReadingTask, "batteryReading", 1024 * 2, NULL, 1, NULL,1);
   // xTaskCreatePinnedToCore(lowBatteryAlarmTask, "lowBatteryAlarm", 1024, NULL, 1, NULL, 1);
 }
