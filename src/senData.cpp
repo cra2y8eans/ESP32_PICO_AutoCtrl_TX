@@ -74,6 +74,6 @@ void mainTask(void* pvParameters) {
 /**
  * @brief 任务和队列初始化
  */
-void sendData_init() {
+void sendDataInit() {
   xTaskCreatePinnedToCore(mainTask, "mainTask", 2048, NULL, 1, NULL, 0);
 }

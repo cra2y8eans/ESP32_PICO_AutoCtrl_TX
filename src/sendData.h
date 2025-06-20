@@ -23,7 +23,7 @@
 
 // // extern QueueHandle_t PadDataQueue;
 
-void sendData_init();
+void sendDataInit();
 void mainTask(void* pvParameters);
 
 #endif

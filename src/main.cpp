@@ -31,6 +31,7 @@ void setup() {
   dataProcessingInit();
   input_device_init();
   battery_init();
+  sendDataInit();
   vTaskDelete(NULL);
 }
 void loop() {
