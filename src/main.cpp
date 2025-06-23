@@ -25,13 +25,13 @@
 void setup() {
   Serial.begin(115200);
   analogReadResolution(ADC_RESOLUTION);
-
+  setupAnalogHat();
   input_device_init();
-  buzzer_init();
+  // buzzer_init();
   oled_init();
-  joystick_init();
-  dataProcessingInit();
-  battery_init();
+  // joystick_init();
+  // dataProcessingInit();
+  // battery_init();
   sendDataInit();
 
   // vTaskDelete(NULL);

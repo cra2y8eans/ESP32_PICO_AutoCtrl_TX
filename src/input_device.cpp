@@ -55,10 +55,17 @@ void switchState() {
   }
 }
 
-void sendButtonEvent(ButtonState btnState, buzzerStatuas buzzer = BUZZER_NONE) {
+// void sendButtonEvent(ButtonState btnState, buzzerStatuas buzzer = BUZZER_NONE) {
+//   xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
+//   if (buzzer != BUZZER_NONE) {
+//     xQueueSend(ButtonToBuzzerQueue, &buzzer, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
+//   }
+// }
+
+void sendButtonEvent(ButtonState btnState, uint8_t mode = NULL) {
   xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-  if (buzzer != BUZZER_NONE) {
-    xQueueSend(ButtonToBuzzerQueue, &buzzer, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
+  if (mode != NULL) {
+    buzzer(mode); // 直接调用buzzer函数，传入模式
   }
 }
 
@@ -76,7 +83,7 @@ void button_L_2_ShortPress() {
 
 void button_L_2_LongPress() {
   buzzerFlag = !buzzerFlag;
-  sendButtonEvent(BUTTON_L_2_LONG_PRESS, BUZZER_LONG);
+  sendButtonEvent(BUTTON_L_2_LONG_PRESS, 2);
 }
 
 void button_R_1_ShortPress() {
@@ -93,7 +100,7 @@ void button_R_2_ShortPress() {
 
 void button_R_2_LongPress() {
   oled_display_flag = !oled_display_flag;
-  sendButtonEvent(BUTTON_R_2_LONG_PRESS, BUZZER_LONG);
+  sendButtonEvent(BUTTON_R_2_LONG_PRESS, 2);
 }
 
 void input_device_task(void* pvParameters) {
@@ -136,10 +143,10 @@ void input_device_task(void* pvParameters) {
 }
 
 void input_device_init() {
-  ButtonToOledQueue   = xQueueCreate(3, sizeof(ButtonState));
-  ButtonToBuzzerQueue = xQueueCreate(3, sizeof(buzzerStatuas));
-  SwitchEventQueue    = xQueueCreate(3, sizeof(switchLastStatus));
-  xTaskCreatePinnedToCore(input_device_task, "input_device_task", 1024 * 4, NULL, 1, NULL, 1);
+  ButtonToOledQueue = xQueueCreate(3, sizeof(ButtonState));
+  // ButtonToBuzzerQueue = xQueueCreate(3, sizeof(buzzerStatuas));
+  SwitchEventQueue = xQueueCreate(3, sizeof(switchLastStatus));
+  xTaskCreatePinnedToCore(input_device_task, "input_device_task", 1024 * 2, NULL, 1, NULL, 1);
 #ifdef DEBUG
   Serial.println(ButtonToOledQueue == NULL ? "Failed to create OLED queue!" : "OLED queue created!");
   Serial.println(input_device_task == NULL ? "Failed to create button task!" : "Button task created!");

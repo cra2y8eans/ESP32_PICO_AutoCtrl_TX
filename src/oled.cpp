@@ -14,21 +14,27 @@
 #define SDA_PIN 21
 #define SCL_PIN 22
 #define OLED_I2C_ADDR 0x3C // oled屏幕I2C地址
-#define SDA_PIN 21
-#define SCL_PIN 22
-#define OLED_I2C_ADDR 0x3C // oled屏幕I2C地址
-#define LOCK 0xe72e
-#define UNLOCK 0xe785
+
 #define ADC_MIN 0                         // ADC最小值
 #define ADC_MAX = pow(2, ADC_RESOLUTION); // ADC最大值
 #define ADC_OUT_MIN -255                  // 摇杆输出ADC最小值
 #define ADC_OUT_MAX 255                   // 摇杆输出ADC最大值
 
-#define QUEUE_MESSAGE_WAIT 10
-
+#define LOCK 0xe72e
+#define UNLOCK 0xe785
 #define ICON_AIRCRAFT 0xe709
 #define ICON_HANDHELD 0xe7fc
 #define SEND_FAILED 0xe71b // 双圈
+#define SPEAKER_ON 59239
+#define SPEAKER_OFF 59215
+#define SEND_ON 0xE898
+#define SEND_OFF 0xf140
+#define ESP_NOW_CONNECTED 0xe870
+#define ESP_NOW_DISCONNECTED 0xe791
+
+#define TOTAL_PAGES 2 // OLED总页数
+#define QUEUE_MESSAGE_WAIT 10
+#define SERVO_MAX_ANGLE 120 // 舵机最大角度
 
 // 构造oled对象
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
@@ -39,8 +45,36 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
 
 uint8_t RC_num = 0; // 接收机编号
 
+void AssignValues() {
+  ButtonState btnState;
+  oled.icon[0]         = sendData.switchStatus[0] ? SEND_ON : SEND_OFF;                                        // 发送开关图标
+  oled.icon[1]         = buzzerFlag ? SPEAKER_ON : SPEAKER_OFF;                                                // 蜂鸣器图标
+  oled.icon[2]         = esp_connected ? ESP_NOW_CONNECTED : ESP_NOW_DISCONNECTED;                             // 连接状态图标                                          // 连接状态图标
+  oled.adcValue[1]     = map(sendData.adcValue[1], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, 255);                    // 油门
+  oled.adcValue[2]     = map(sendData.adcValue[2], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, SERVO_MAX_ANGLE);        // 副翼
+  oled.adcValue[3]     = map(sendData.adcValue[3], ADC_OUT_MIN, ADC_OUT_MAX, ADC_MIN, (SERVO_MAX_ANGLE - 20)); // 升降舵
+  oled.batteryValue[0] = batteryStatus.pad[0];                                                                 // 遥控器电压
+  oled.batteryValue[1] = batteryStatus.pad[1];                                                                 // 遥控器电量
+  oled.batteryValue[2] = aircraft.batteryValue[0];                                                             // 飞机电压
+  oled.batteryValue[3] = aircraft.batteryValue[1];                                                             // 飞机电量
+  if (xQueueReceive(ButtonToOledQueue, &btnState, 10) == pdTRUE) {
+    switch (btnState) {
+    case BUTTON_L_1_SHORT_PRESS:
+      oled.num -= 1;
+      oled.page = oled.num % TOTAL_PAGES;
+      break;
+      break;
+    case BUTTON_R_1_SHORT_PRESS:
+      oled.num += 1;
+      oled.page = oled.num % TOTAL_PAGES;
+      break;
+    default:
+      break;
+    }
+  }
+}
+
 void unlock() {
-  setupAnalogHat();
   bool    paringMax  = false;
   bool    paringMin  = false;
   bool    RC_confirm = false;
@@ -48,7 +82,7 @@ void unlock() {
   uint8_t progress   = 0;
   String  RC_version = "";
 
-  buzzerStatuas buzzerMode;
+  // buzzerStatuas buzzerMode;
 
   while (paringMax == false) {
     int reading = getAnalogHat(throttle);
@@ -60,11 +94,12 @@ void unlock() {
     u8g2.drawUTF8(18, 56, "请将油门推到最大");
     u8g2.sendBuffer();
     if (reading > ADC_OUT_MAX - 10) {
-      paringMax  = true;
-      buzzerMode = BUZZER_SHORT;
-      if (ButtonToBuzzerQueue != NULL) {
-        xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      }
+      paringMax = true;
+      buzzer(1); // 蜂鸣器短响
+      // buzzerMode = BUZZER_SHORT;
+      // if (ButtonToBuzzerQueue != NULL) {
+      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+      // }
     }
   }
   delay(500);
@@ -80,19 +115,21 @@ void unlock() {
       RC_num     = 2;
       RC_confirm = true;
       RC_version = "1.02";
-      buzzerMode = BUZZER_SHORT;
-      if (ButtonToBuzzerQueue != NULL) {
-        xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      }
+      buzzer(1);
+      // buzzerMode = BUZZER_SHORT;
+      // if (ButtonToBuzzerQueue != NULL) {
+      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+      // }
     }
     if (reading < ADC_OUT_MIN + 50) {
       RC_num     = 1;
       RC_confirm = true;
       RC_version = "1.01";
-      buzzerMode = BUZZER_SHORT;
-      if (ButtonToBuzzerQueue != NULL) {
-        xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      }
+      buzzer(1);
+      // buzzerMode = BUZZER_SHORT;
+      // if (ButtonToBuzzerQueue != NULL) {
+      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+      // }
     }
   }
   delay(500);
@@ -106,11 +143,12 @@ void unlock() {
     u8g2.drawUTF8(18, 56, "再将油门推到最小");
     u8g2.sendBuffer();
     if (reading < ADC_OUT_MIN + 2) {
-      paringMin  = true;
-      buzzerMode = BUZZER_LONG;
-      if (ButtonToBuzzerQueue != NULL) {
-        xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      }
+      paringMin = true;
+      buzzer(2); // 蜂鸣器长响
+      // buzzerMode = BUZZER_LONG;
+      // if (ButtonToBuzzerQueue != NULL) {
+      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
+      // }
     }
     while (paringMax == true && paringMin == true && progress < 100) {
       progress += 2;
@@ -131,6 +169,8 @@ void oled_task(void* pvParameters) {
   u8g2.enableUTF8Print();
   unlock(); // 解锁遥控器
   while (1) {
+    AssignValues();
+    vTaskDelay(100 / portTICK_PERIOD_MS);
     if (oled_display_flag == true) {
       switch (oled.page) {
       case 0:

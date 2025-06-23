@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+
 typedef struct {
   float pad[2] = {}; // 0、电压    1、百分比
 } Battery_t;
@@ -31,4 +32,7 @@ extern bool oled_display_flag; // 在button.cpp中定义
 extern bool esp_connected;     // 在sendData.cpp中定义
 
 extern uint8_t RC_num;         // 在button.cpp中定义
+extern uint8_t buzzerMode;     // 在button.cpp中定义
 extern int     esp_now_signal; // 在sendData.cpp中定义
+
+void buzzer(uint8_t mode);
