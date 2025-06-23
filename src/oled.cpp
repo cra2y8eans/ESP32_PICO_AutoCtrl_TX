@@ -45,6 +45,8 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
 
 uint8_t RC_num = 0; // 接收机编号
 
+OLED_t oled; // OLED显示数据结构体
+
 void AssignValues() {
   ButtonState btnState;
   oled.icon[0]         = sendData.switchStatus[0] ? SEND_ON : SEND_OFF;                                        // 发送开关图标

@@ -37,6 +37,7 @@ int  esp_now_signal = 0;     // ESP NOW信号标志位
 
 BatReading battery;
 Battery_t  batteryStatus;
+sendData_t sendData; // 发送数据结构体
 
 /**
  * @brief 数据发送成功的回调函数
@@ -104,7 +105,7 @@ void mainTask(void* pvParameters) {
   selectRC();
   battery.init(BATTERY_PIN, R1, R2, BATTERY_MAX_VALUE, BATTERY_MIN_VALUE);
   static uint8_t switchLastStatus[3] = { 0 }; // 存储开关状态
-  
+
 #ifdef DEBUG
   if (esp_now_init() != ESP_OK) {
     Serial.println("ESP-NOW init failed");

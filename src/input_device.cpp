@@ -62,9 +62,9 @@ void switchState() {
 //   }
 // }
 
-void sendButtonEvent(ButtonState btnState, uint8_t mode = NULL) {
+void sendButtonEvent(ButtonState btnState, uint8_t mode = 0) {
   xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-  if (mode != NULL) {
+  if (mode != 0) {
     buzzer(mode); // 直接调用buzzer函数，传入模式
   }
 }
