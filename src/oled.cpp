@@ -84,8 +84,6 @@ void unlock() {
   uint8_t progress   = 0;
   String  RC_version = "";
 
-  // buzzerStatuas buzzerMode;
-
   while (paringMax == false) {
     int reading = getAnalogHat(throttle);
     lock        = LOCK;
@@ -98,10 +96,6 @@ void unlock() {
     if (reading > ADC_OUT_MAX - 10) {
       paringMax = true;
       buzzer(1); // 蜂鸣器短响
-      // buzzerMode = BUZZER_SHORT;
-      // if (ButtonToBuzzerQueue != NULL) {
-      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      // }
     }
   }
   delay(500);
@@ -118,20 +112,12 @@ void unlock() {
       RC_confirm = true;
       RC_version = "1.02";
       buzzer(1);
-      // buzzerMode = BUZZER_SHORT;
-      // if (ButtonToBuzzerQueue != NULL) {
-      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      // }
     }
     if (reading < ADC_OUT_MIN + 50) {
       RC_num     = 1;
       RC_confirm = true;
       RC_version = "1.01";
       buzzer(1);
-      // buzzerMode = BUZZER_SHORT;
-      // if (ButtonToBuzzerQueue != NULL) {
-      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      // }
     }
   }
   delay(500);
@@ -147,10 +133,6 @@ void unlock() {
     if (reading < ADC_OUT_MIN + 2) {
       paringMin = true;
       buzzer(2); // 蜂鸣器长响
-      // buzzerMode = BUZZER_LONG;
-      // if (ButtonToBuzzerQueue != NULL) {
-      //   xQueueSend(ButtonToBuzzerQueue, &buzzerMode, QUEUE_MESSAGE_WAIT / portTICK_PERIOD_MS);
-      // }
     }
     while (paringMax == true && paringMin == true && progress < 100) {
       progress += 2;
@@ -172,7 +154,7 @@ void oled_task(void* pvParameters) {
   unlock(); // 解锁遥控器
   while (1) {
     AssignValues();
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    // vTaskDelay(100 / portTICK_PERIOD_MS);
     if (oled_display_flag == true) {
       switch (oled.page) {
       case 0:
@@ -229,7 +211,7 @@ void oled_task(void* pvParameters) {
 }
 
 void oled_init() {
-  xTaskCreatePinnedToCore(oled_task, "oled_task", 1024 * 10, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(oled_task, "oled_task", 1024 * 8, NULL, 1, NULL, 1);
 #ifdef DEBUG
   Serial.println(oled_task == NULL ? "OLED任务创建失败" : "OLED任务创建成功");
 #endif

@@ -58,17 +58,15 @@ void OnDataRecv(const uint8_t* mac, const uint8_t* incomingData, int len) {
   if (batteryStatus.pad[1] < BATTERY_MIN_PERCENTAGE || aircraft.batteryValue[1] < BATTERY_MIN_PERCENTAGE) {
     if (isAlerted == false) {
       // 如果未报警过，开始报警
-      for (int i = 0; i < 3; i++) {
-        // buzzerStatuas buzzer = BUZZER_REPEAT;
-        // xQueueSend(BatteryToBuzzerQueue, &buzzer, 10);
-        buzzer(3);                             // 蜂鸣器报警，repeat模式
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // 每秒报警一次
-      }
+      buzzer(3);                             // 蜂鸣器报警，repeat模式
+      // for (int i = 0; i < 3; i++) {
+      //   // vTaskDelay(1000 / portTICK_PERIOD_MS); // 每秒报警一次
+      // }
       isAlerted = true; // 设置为已报警状态
     } else {
       // 如果已经报警过，进入静默期
       unsigned long currentTime = millis();
-      if (currentTime - lastAlarmStart > 15000) {
+      if (currentTime - lastAlarmStart > 10000) {
         // 如果静默期结束，重置状态
         isAlerted      = false;
         lastAlarmStart = currentTime; // 重置计时器
@@ -152,5 +150,5 @@ void mainTask(void* pvParameters) {
  * @brief 任务和队列初始化
  */
 void sendDataInit() {
-  xTaskCreatePinnedToCore(mainTask, "mainTask", 1024 * 6, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(mainTask, "mainTask", 1024 * 8, NULL, 1, NULL, 1);
 }

@@ -55,13 +55,6 @@ void switchState() {
   }
 }
 
-// void sendButtonEvent(ButtonState btnState, buzzerStatuas buzzer = BUZZER_NONE) {
-//   xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-//   if (buzzer != BUZZER_NONE) {
-//     xQueueSend(ButtonToBuzzerQueue, &buzzer, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
-//   }
-// }
-
 void sendButtonEvent(ButtonState btnState, uint8_t mode = 0) {
   xQueueSend(ButtonToOledQueue, &btnState, QUEUE_MESSAGE_WAITING / portTICK_PERIOD_MS);
   if (mode != 0) {
